@@ -57,7 +57,18 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['**/render/**', '**/input/**', '**/net/**', '**/audio/**'],
+              group: [
+                '**/render',
+                '**/render/**',
+                '**/input',
+                '**/input/**',
+                '**/net',
+                '**/net/**',
+                '**/audio',
+                '**/audio/**',
+                '**/loop',
+                '**/loop/**',
+              ],
               message:
                 'Sim code must not import renderer, input, network, or audio modules.',
             },

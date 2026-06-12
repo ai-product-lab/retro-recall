@@ -7,6 +7,9 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./sim": "./src/sim/index.ts"
+    "./sim": "./src/sim/index.ts",
+    "./render": "./src/render/index.ts",
+    "./input": "./src/input/index.ts",
+    "./loop": "./src/loop.ts"
   }
 }
