@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" width="640" height="160">
+  <!-- Retro Recall wordmark + pixel-bubble icon (v0.1 brand sketch) -->
+  <rect width="640" height="160" rx="12" fill="#0F1222"/>
+
+  <!-- Pixel bubble icon: 12x12 grid, cell 8px, origin (28,28) -->
+  <g transform="translate(28,28)">
+    <!-- bubble outline (cyan) -->
+    <g fill="#4CC9F0">
+      <rect x="32" y="0" width="32" height="8"/>
+      <rect x="16" y="8" width="16" height="8"/>
+      <rect x="64" y="8" width="16" height="8"/>
+      <rect x="8" y="16" width="8" height="8"/>
+      <rect x="80" y="16" width="8" height="8"/>
+      <rect x="0" y="32" width="8" height="32"/>
+      <rect x="88" y="32" width="8" height="32"/>
+      <rect x="8" y="24" width="8" height="8"/>
+      <rect x="80" y="24" width="8" height="8"/>
+      <rect x="8" y="64" width="8" height="8"/>
+      <rect x="80" y="64" width="8" height="8"/>
+      <rect x="16" y="72" width="16" height="8"/>
+      <rect x="64" y="72" width="16" height="8"/>
+      <rect x="32" y="80" width="32" height="8"/>
+    </g>
+    <!-- glass shine (mint) -->
+    <g fill="#3DF5A6">
+      <rect x="24" y="16" width="16" height="8"/>
+      <rect x="16" y="24" width="8" height="16"/>
+    </g>
+    <!-- inner glow (faint cyan) -->
+    <g fill="#4CC9F0" opacity="0.18">
+      <rect x="16" y="16" width="64" height="56"/>
+    </g>
+  </g>
+
+  <!-- Wordmark -->
+  <g font-family="Menlo, Consolas, 'Courier New', monospace" font-weight="bold" letter-spacing="6">
+    <text x="150" y="78" font-size="44" fill="#F2EFE9">RETRO</text>
+    <text x="150" y="128" font-size="44" fill="#3DF5A6">RECALL</text>
+  </g>
+
+  <!-- pixel underline -->
+  <g fill="#FF6B6B">
+    <rect x="396" y="112" width="12" height="12"/>
+    <rect x="412" y="112" width="12" height="12" fill="#FFD166"/>
+    <rect x="428" y="112" width="12" height="12" fill="#4CC9F0"/>
+  </g>
+</svg>

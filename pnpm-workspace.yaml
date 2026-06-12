@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+  - games/*
+  - workers/*
+  - tools/*
+  - site
+allowBuilds:
+  esbuild: true

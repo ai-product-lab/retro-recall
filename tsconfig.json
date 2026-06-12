@@ -1,0 +1,7 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/retrokit" },
+    { "path": "games/bubble-buddies" }
+  ]
+}
