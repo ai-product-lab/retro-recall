@@ -15,6 +15,6 @@ const input = new KeyboardInput(window);
 const sim = new BubbleBuddiesSim(Date.now() >>> 0);
 
 startLoop({
-  tick: () => sim.tick(input.sample()),
-  render: () => render(renderer, sim),
+  tick: () => sim.tick([input.sample()]),
+  render: () => render(renderer, sim.map, sim.state),
 });

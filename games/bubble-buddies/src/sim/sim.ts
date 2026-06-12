@@ -10,12 +10,23 @@ import {
   moveAABB,
   type GameSim,
   type InputBits,
+  type SlotInputs,
 } from '@retro-recall/retrokit/sim';
 import * as C from './constants';
 import { LEVELS } from './levels';
 
 export type Mode = 'playing' | 'death' | 'levelclear' | 'gameover' | 'win';
 export type EnemyKind = 'grumble' | 'flitter';
+
+/**
+ * Slot lifecycle (spec §11):
+ * - `alive`     in play (in classic solo mode this is the only living phase)
+ * - `bubble`    downed under revive rules — a rescue bubble a teammate can pop
+ * - `pending`   joined mid-level; spectates until the next level loads
+ * - `despawned` no inputs for DISCONNECT_GRACE_TICKS; may be reactivated via
+ *               rejoinPlayer(), keeping its score
+ */
+export type PlayerPhase = 'alive' | 'bubble' | 'pending' | 'despawned';
 
 export interface PlayerState {
   x: number;
@@ -25,6 +36,15 @@ export interface PlayerState {
   grounded: boolean;
   blowCooldown: number;
   invuln: number;
+  phase: PlayerPhase;
+  score: number;
+  /** Rescue bubble rest y once it reaches the ceiling; -1 while rising. */
+  restY: number;
+  /** Rescue bubble age, for the bob wave. */
+  bubbleAge: number;
+  /** Consecutive ticks with no input received (disconnect grace counter). */
+  idleTicks: number;
+  prevInput: number;
 }
 
 export interface BubbleState {
@@ -69,14 +89,16 @@ export interface GameState {
   mode: Mode;
   modeTicks: number;
   level: number;
-  score: number;
+  /** Classic solo mode only (spec §11: revive rules do not use lives). */
   lives: number;
   extraLifeAwarded: boolean;
   tick: number;
   rng: number;
   nextId: number;
-  prevInput: number;
-  player: PlayerState;
+  /** True when ≥2 players were active at the last level load (spec §11). */
+  reviveRules: boolean;
+  /** Indexed by slot 0–3; null = slot never joined. */
+  players: (PlayerState | null)[];
   bubbles: BubbleState[];
   enemies: EnemyState[];
   fruit: FruitState[];
@@ -122,30 +144,30 @@ const spawnPos = (tx: number, ty: number, w: number, h: number): { x: number; y:
 });
 
 export class BubbleBuddiesSim implements GameSim {
-  readonly state: GameState;
+  state: GameState;
   private levels: ParsedLevel[];
   private rng: Rng;
 
-  constructor(seed: number, startLevel = 0) {
+  constructor(seed: number, startLevel = 0, playerCount = 1) {
     this.levels = LEVELS.map((_, i) => parseLevel(i));
     this.rng = new Rng(seed);
     this.state = {
       mode: 'playing',
       modeTicks: 0,
       level: startLevel,
-      score: 0,
       lives: C.PLAYER_START_LIVES,
       extraLifeAwarded: false,
       tick: 0,
       rng: this.rng.state(),
       nextId: 1,
-      prevInput: 0,
-      player: { x: 0, y: 0, vy: 0, facing: 1, grounded: true, blowCooldown: 0, invuln: 0 },
+      reviveRules: false,
+      players: [null, null, null, null],
       bubbles: [],
       enemies: [],
       fruit: [],
     };
     this.loadLevel(startLevel);
+    for (let slot = 0; slot < playerCount; slot++) this.joinPlayer(slot);
   }
 
   get map(): TileMap {
@@ -154,6 +176,82 @@ export class BubbleBuddiesSim implements GameSim {
 
   get levelName(): string {
     return LEVELS[this.state.level]!.name;
+  }
+
+  /** Slots currently in play (alive or downed-as-rescue-bubble). */
+  private activeSlots(): number[] {
+    const out: number[] = [];
+    this.state.players.forEach((p, slot) => {
+      if (p && (p.phase === 'alive' || p.phase === 'bubble')) out.push(slot);
+    });
+    return out;
+  }
+
+  // --- Player lifecycle (spec §11) ---
+
+  /**
+   * Add a player to a slot. Before the first tick the player spawns active;
+   * mid-level joiners spectate (`pending`) until the next level loads.
+   */
+  joinPlayer(slot: number): void {
+    const st = this.state;
+    if (slot < 0 || slot >= C.MAX_PLAYERS) throw new Error(`bad slot ${slot}`);
+    if (st.players[slot]) throw new Error(`slot ${slot} already joined`);
+    st.players[slot] = {
+      x: 0,
+      y: 0,
+      vy: 0,
+      facing: 1,
+      grounded: true,
+      blowCooldown: 0,
+      invuln: 0,
+      phase: 'pending',
+      score: 0,
+      restY: -1,
+      bubbleAge: 0,
+      idleTicks: 0,
+      prevInput: 0,
+    };
+    if (st.tick === 0) {
+      this.spawnSlot(slot, 0);
+      st.reviveRules = this.activeSlots().length >= 2;
+    }
+  }
+
+  /**
+   * Reactivate a despawned slot after a rejoin (netcode-driven, spec §11):
+   * spawn at the slot offset with invulnerability, score kept.
+   */
+  rejoinPlayer(slot: number): void {
+    const p = this.state.players[slot];
+    if (!p) {
+      this.joinPlayer(slot);
+      return;
+    }
+    p.idleTicks = 0;
+    if (p.phase === 'despawned') this.spawnSlot(slot, C.RESCUE_POP_INVULN_TICKS);
+  }
+
+  /** Place a slot at its spawn offset, alive. */
+  private spawnSlot(slot: number, invuln: number): void {
+    const st = this.state;
+    const p = st.players[slot]!;
+    const lvl = this.levels[st.level]!;
+    const tx = Math.min(
+      Math.max(lvl.playerSpawn.tx + C.PLAYER_SPAWN_OFFSETS[slot]!, 1),
+      C.LEVEL_WIDTH - 2,
+    );
+    const pos = spawnPos(tx, lvl.playerSpawn.ty, C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H);
+    p.x = pos.x;
+    p.y = pos.y;
+    p.vy = 0;
+    p.facing = 1;
+    p.grounded = true;
+    p.blowCooldown = 0;
+    p.invuln = invuln;
+    p.phase = 'alive';
+    p.restY = -1;
+    p.bubbleAge = 0;
   }
 
   private loadLevel(index: number): void {
@@ -176,53 +274,64 @@ export class BubbleBuddiesSim implements GameSim {
         ledgeTile: -1,
       };
     });
-    this.respawnPlayer(false);
+    // All joined, non-despawned slots (including mid-level joiners) spawn in.
+    st.players.forEach((p, slot) => {
+      if (p && p.phase !== 'despawned') this.spawnSlot(slot, 0);
+    });
+    st.reviveRules = this.activeSlots().length >= 2;
     st.mode = 'playing';
     st.modeTicks = 0;
   }
 
-  private respawnPlayer(invulnerable: boolean): void {
-    const st = this.state;
-    const lvl = this.levels[st.level]!;
-    const pos = spawnPos(lvl.playerSpawn.tx, lvl.playerSpawn.ty, C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H);
-    st.player = {
-      x: pos.x,
-      y: pos.y,
-      vy: 0,
-      facing: 1,
-      grounded: true,
-      blowCooldown: 0,
-      invuln: invulnerable ? C.RESPAWN_INVULN_TICKS : 0,
-    };
-  }
-
   private restart(): void {
     const st = this.state;
-    st.score = 0;
+    for (const p of st.players) if (p) p.score = 0;
     st.lives = C.PLAYER_START_LIVES;
     st.extraLifeAwarded = false;
     this.loadLevel(0);
   }
 
-  tick(input: InputBits): void {
+  tick(inputs: SlotInputs): void {
     const st = this.state;
-    const pressed = input & ~st.prevInput;
+
+    // Resolve per-slot inputs; null (no input received) feeds disconnect grace.
+    const bits: number[] = [0, 0, 0, 0];
+    const pressed: number[] = [0, 0, 0, 0];
+    for (let slot = 0; slot < C.MAX_PLAYERS; slot++) {
+      const p = st.players[slot];
+      if (!p) continue;
+      const raw = inputs[slot] ?? null;
+      if (raw === null) {
+        p.idleTicks++;
+        if (p.idleTicks >= C.DISCONNECT_GRACE_TICKS && p.phase !== 'despawned') {
+          p.phase = 'despawned'; // rescue bubble, if any, despawns with the slot
+        }
+      } else {
+        p.idleTicks = 0;
+        bits[slot] = raw;
+      }
+      pressed[slot] = bits[slot]! & ~p.prevInput;
+    }
+    this.checkReviveGameOver(); // a despawn can leave only rescue bubbles active
 
     switch (st.mode) {
       case 'playing':
-        this.updatePlaying(input, pressed);
+        this.updatePlaying(bits, pressed);
         break;
-      case 'death':
+      case 'death': {
+        // Classic solo mode only: world frozen during the death pause.
         st.modeTicks--;
         if (st.modeTicks <= 0) {
           if (st.lives > 0) {
-            this.respawnPlayer(true);
+            const slot = this.activeSlots()[0];
+            if (slot !== undefined) this.spawnSlot(slot, C.RESPAWN_INVULN_TICKS);
             st.mode = 'playing';
           } else {
             st.mode = 'gameover';
           }
         }
         break;
+      }
       case 'levelclear':
         st.modeTicks--;
         if (st.modeTicks <= 0) {
@@ -232,29 +341,44 @@ export class BubbleBuddiesSim implements GameSim {
         break;
       case 'gameover':
       case 'win':
-        if (pressed !== 0) this.restart();
+        if (st.players.some((p, slot) => p && p.phase !== 'despawned' && pressed[slot] !== 0)) {
+          this.restart();
+        }
         break;
     }
 
-    st.prevInput = input;
+    for (let slot = 0; slot < C.MAX_PLAYERS; slot++) {
+      const p = st.players[slot];
+      if (p) p.prevInput = bits[slot]!;
+    }
     st.rng = this.rng.state();
     st.tick++;
   }
 
-  private updatePlaying(input: InputBits, pressed: number): void {
-    this.updatePlayer(input, pressed);
+  private updatePlaying(bits: number[], pressed: number[]): void {
+    const st = this.state;
+    for (let slot = 0; slot < C.MAX_PLAYERS; slot++) {
+      const p = st.players[slot];
+      if (!p) continue;
+      if (p.phase === 'alive') this.updateAlivePlayer(p, bits[slot]!, pressed[slot]!);
+      else if (p.phase === 'bubble') this.updateRescueBubble(p);
+    }
     this.updateBubbles();
     this.updateEnemies();
     this.updateFruit();
-    this.resolveContacts();
+    for (let slot = 0; slot < C.MAX_PLAYERS; slot++) {
+      if (st.mode !== 'playing') break; // a classic-mode death freezes the tick
+      const p = st.players[slot];
+      if (p && p.phase === 'alive') this.resolveContactsFor(slot, p);
+    }
+    this.checkReviveGameOver();
     this.checkLevelClear();
   }
 
   // --- Player (spec §3) ---
 
-  private updatePlayer(input: InputBits, pressed: number): void {
+  private updateAlivePlayer(p: PlayerState, input: InputBits, pressed: number): void {
     const st = this.state;
-    const p = st.player;
     const map = this.map;
 
     if (p.blowCooldown > 0) p.blowCooldown--;
@@ -303,6 +427,41 @@ export class BubbleBuddiesSim implements GameSim {
       });
       p.blowCooldown = C.BLOW_COOLDOWN_TICKS;
     }
+  }
+
+  // --- Rescue bubble (spec §11) ---
+
+  private updateRescueBubble(p: PlayerState): void {
+    p.bubbleAge++;
+    if (p.restY < 0) {
+      // Rising: same feel as a floating bubble; passes through platforms.
+      const res = moveAABB(
+        this.map, p.x, p.y, C.BUBBLE_HITBOX, C.BUBBLE_HITBOX, 0, C.RESCUE_FLOAT_SPEED, true,
+      );
+      p.x = res.x;
+      p.y = res.y;
+      if (res.hitY) p.restY = res.y;
+    } else {
+      p.y = p.restY + bobOffset(p.bubbleAge);
+    }
+  }
+
+  /** Turn a downed player into a rescue bubble (revive rules). */
+  private downPlayer(p: PlayerState): void {
+    p.phase = 'bubble';
+    p.vy = 0;
+    p.restY = -1;
+    p.bubbleAge = 0;
+  }
+
+  /** Revive a downed player at its rescue bubble's position. */
+  private revivePlayer(p: PlayerState): void {
+    p.phase = 'alive';
+    p.vy = 0;
+    p.grounded = false;
+    p.invuln = C.RESCUE_POP_INVULN_TICKS;
+    p.restY = -1;
+    p.bubbleAge = 0;
   }
 
   // --- Bubbles (spec §4) ---
@@ -464,11 +623,10 @@ export class BubbleBuddiesSim implements GameSim {
     st.fruit = kept;
   }
 
-  // --- Pops, collection, and player contact (spec §4, §6) ---
+  // --- Pops, collection, rescue, and player contact (spec §4, §6, §11) ---
 
-  private resolveContacts(): void {
+  private resolveContactsFor(slot: number, p: PlayerState): void {
     const st = this.state;
-    const p = st.player;
 
     // Player touching any bubble pops it, chaining to nearby bubbles.
     const seeds = st.bubbles.filter((b) =>
@@ -477,9 +635,9 @@ export class BubbleBuddiesSim implements GameSim {
         b.x, b.y, C.BUBBLE_HITBOX, C.BUBBLE_HITBOX,
       ),
     );
-    if (seeds.length > 0) this.popChain(seeds);
+    if (seeds.length > 0) this.popChain(seeds, slot);
 
-    // Collect fruit.
+    // Collect fruit (credited to the collector).
     const remaining: FruitState[] = [];
     for (const f of st.fruit) {
       if (
@@ -488,12 +646,25 @@ export class BubbleBuddiesSim implements GameSim {
           f.x, f.y, C.FRUIT_HITBOX, C.FRUIT_HITBOX,
         )
       ) {
-        this.addScore(f.kind === 'grumble' ? C.SCORE_FRUIT_GRUMBLE : C.SCORE_FRUIT_FLITTER);
+        this.addScore(slot, f.kind === 'grumble' ? C.SCORE_FRUIT_GRUMBLE : C.SCORE_FRUIT_FLITTER);
       } else {
         remaining.push(f);
       }
     }
     st.fruit = remaining;
+
+    // Pop teammates' rescue bubbles: revive them where the bubble is.
+    for (const other of st.players) {
+      if (!other || other === p || other.phase !== 'bubble') continue;
+      if (
+        aabbOverlap(
+          p.x, p.y, C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H,
+          other.x, other.y, C.BUBBLE_HITBOX, C.BUBBLE_HITBOX,
+        )
+      ) {
+        this.revivePlayer(other);
+      }
+    }
 
     // Enemy contact kills (unless invulnerable).
     if (p.invuln <= 0) {
@@ -504,16 +675,20 @@ export class BubbleBuddiesSim implements GameSim {
             e.x, e.y, C.ENEMY_HITBOX_W, C.ENEMY_HITBOX_H,
           )
         ) {
-          st.lives--;
-          st.mode = 'death';
-          st.modeTicks = C.DEATH_PAUSE_TICKS;
+          if (st.reviveRules) {
+            this.downPlayer(p);
+          } else {
+            st.lives--;
+            st.mode = 'death';
+            st.modeTicks = C.DEATH_PAUSE_TICKS;
+          }
           break;
         }
       }
     }
   }
 
-  private popChain(seeds: BubbleState[]): void {
+  private popChain(seeds: BubbleState[], creditSlot: number): void {
     const st = this.state;
     const popping = new Set<number>(seeds.map((b) => b.id));
     // Transitive chain: bubbles within CHAIN_POP_RADIUS of a popping bubble.
@@ -537,14 +712,14 @@ export class BubbleBuddiesSim implements GameSim {
       }
     }
 
-    // Score and resolve in ascending bubble-ID order.
+    // Score and resolve in ascending bubble-ID order, credited to the popper.
     let enemyChain = 0;
     for (const b of st.bubbles) {
       if (!popping.has(b.id)) continue;
       if (b.trapped !== null) {
         enemyChain++;
         const value = Math.min(C.SCORE_POP_BASE * 2 ** (enemyChain - 1), C.SCORE_POP_MAX);
-        this.addScore(value);
+        this.addScore(creditSlot, value);
         st.fruit.push({
           id: st.nextId++,
           kind: b.trapped,
@@ -554,22 +729,37 @@ export class BubbleBuddiesSim implements GameSim {
           age: 0,
         });
       } else {
-        this.addScore(C.SCORE_POP_EMPTY);
+        this.addScore(creditSlot, C.SCORE_POP_EMPTY);
       }
     }
     st.bubbles = st.bubbles.filter((b) => !popping.has(b.id));
   }
 
-  private addScore(points: number): void {
+  private addScore(slot: number, points: number): void {
     const st = this.state;
-    st.score += points;
-    if (!st.extraLifeAwarded && st.score >= C.EXTRA_LIFE_SCORE) {
+    const p = st.players[slot];
+    if (!p) return;
+    p.score += points;
+    // Extra life applies only in classic solo mode (spec §11).
+    if (!st.reviveRules && !st.extraLifeAwarded && p.score >= C.EXTRA_LIFE_SCORE) {
       st.extraLifeAwarded = true;
       st.lives++;
     }
   }
 
-  // --- Level clear (spec §7) ---
+  // --- Game over under revive rules (spec §11) ---
+
+  private checkReviveGameOver(): void {
+    const st = this.state;
+    if (!st.reviveRules || st.mode !== 'playing') return;
+    const active = this.activeSlots().map((s) => st.players[s]!);
+    if (active.length > 0 && active.every((p) => p.phase === 'bubble')) {
+      st.mode = 'gameover';
+      st.modeTicks = 0;
+    }
+  }
+
+  // --- Level clear (spec §7, §11) ---
 
   private checkLevelClear(): void {
     const st = this.state;
@@ -578,16 +768,78 @@ export class BubbleBuddiesSim implements GameSim {
     if (st.enemies.length === 0 && !anyTrapped && st.fruit.length === 0) {
       st.mode = 'levelclear';
       st.modeTicks = C.LEVEL_CLEAR_PAUSE_TICKS;
+      // Rescue bubbles auto-pop (revive) on level clear.
+      for (const p of st.players) {
+        if (p && p.phase === 'bubble') this.revivePlayer(p);
+      }
     }
   }
 
   // --- GameSim contract ---
 
+  /** True when this game has only ever been slot 0 playing classic rules. */
+  private isClassicSoloShape(): boolean {
+    const st = this.state;
+    return (
+      !st.reviveRules &&
+      st.players[0] !== null &&
+      st.players[1] === null &&
+      st.players[2] === null &&
+      st.players[3] === null
+    );
+  }
+
+  /**
+   * Canonical state for hashing and replay fixtures. Classic solo games
+   * serialize in the exact pre-multiplayer (v1) shape so the Phase 1 golden
+   * replay fixture remains valid byte-for-byte; everything else serializes
+   * the full multiplayer state. Netcode snapshots use snapshot()/restore(),
+   * which are always lossless.
+   */
   serialize(): string {
-    return JSON.stringify(this.state);
+    const st = this.state;
+    if (this.isClassicSoloShape()) {
+      const p = st.players[0]!;
+      return JSON.stringify({
+        mode: st.mode,
+        modeTicks: st.modeTicks,
+        level: st.level,
+        score: p.score,
+        lives: st.lives,
+        extraLifeAwarded: st.extraLifeAwarded,
+        tick: st.tick,
+        rng: st.rng,
+        nextId: st.nextId,
+        prevInput: p.prevInput,
+        player: {
+          x: p.x,
+          y: p.y,
+          vy: p.vy,
+          facing: p.facing,
+          grounded: p.grounded,
+          blowCooldown: p.blowCooldown,
+          invuln: p.invuln,
+        },
+        bubbles: st.bubbles,
+        enemies: st.enemies,
+        fruit: st.fruit,
+      });
+    }
+    return JSON.stringify(st);
   }
 
   hash(): number {
     return fnv1a(this.serialize());
+  }
+
+  /** Lossless full state, for netcode snapshots. */
+  snapshot(): string {
+    return JSON.stringify(this.state);
+  }
+
+  /** Restore from a snapshot() string. */
+  restore(json: string): void {
+    this.state = JSON.parse(json) as GameState;
+    this.rng = Rng.fromState(this.state.rng);
   }
 }

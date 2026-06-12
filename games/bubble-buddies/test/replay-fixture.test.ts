@@ -70,7 +70,7 @@ const runAndSample = (): { hashes: number[]; finalSerializedLength: number } => 
   let t = 0;
   for (const [bits, count] of LOG) {
     for (let i = 0; i < count; i++) {
-      sim.tick(bits);
+      sim.tick([bits]);
       t++;
       if (t % HASH_EVERY === 0) hashes.push(sim.hash());
     }

@@ -1,7 +1,8 @@
 import { SUBPX, Tile } from '@retro-recall/retrokit/sim';
 import type { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import * as C from '../sim/constants';
-import type { BubbleBuddiesSim, EnemyKind } from '../sim/sim';
+import type { EnemyKind, GameState, PlayerState } from '../sim/sim';
+import type { TileMap } from '@retro-recall/retrokit/sim';
 
 const px = (subpx: number): number => Math.floor(subpx / SUBPX);
 
@@ -11,8 +12,6 @@ const COLORS = {
   solidShade: '#27348f',
   platform: '#8be0ff',
   platformShade: '#4aa8d8',
-  player: '#4ade80',
-  playerShade: '#22a857',
   grumble: '#fb923c',
   grumbleShade: '#d96a16',
   flitter: '#a78bfa',
@@ -26,8 +25,23 @@ const COLORS = {
   hudDim: '#9ca3af',
 } as const;
 
-function drawTiles(r: Canvas2DRenderer, sim: BubbleBuddiesSim): void {
-  const map = sim.map;
+/** Per-slot palette tints (spec §11). Slot 0 is the classic green buddy. */
+export const SLOT_COLORS: readonly { body: string; shade: string }[] = [
+  { body: '#4ade80', shade: '#22a857' },
+  { body: '#60a5fa', shade: '#2563eb' },
+  { body: '#facc15', shade: '#ca8a04' },
+  { body: '#f472b6', shade: '#db2777' },
+];
+
+/** Extra, shell-owned things to draw on top of sim state. */
+export interface RenderOverlay {
+  /** Slot whose character is "you" (gets a marker). */
+  localSlot?: number;
+  /** Active emotes: slot → glyph (already filtered to the display window). */
+  emotes?: ReadonlyMap<number, string>;
+}
+
+function drawTiles(r: Canvas2DRenderer, map: TileMap): void {
   const ts = map.tileSize;
   for (let ty = 0; ty < map.height; ty++) {
     for (let tx = 0; tx < map.width; tx++) {
@@ -80,13 +94,27 @@ function enemyColors(kind: EnemyKind, angry: boolean): { body: string; shade: st
     : { body: COLORS.flitter, shade: COLORS.flitterShade };
 }
 
-function drawHud(r: Canvas2DRenderer, sim: BubbleBuddiesSim): void {
-  const st = sim.state;
-  r.text(`SCORE ${String(st.score).padStart(6, '0')}`, 4, 0, COLORS.hud);
-  r.text(`LV ${st.level + 1}`, r.width / 2, 0, COLORS.hud, 8, 'center');
-  for (let i = 0; i < st.lives; i++) {
-    r.rect(r.width - 8 - i * 7, 1, 5, 5, COLORS.player);
+const isMultiplayer = (st: GameState): boolean =>
+  st.players.filter((p) => p !== null).length > 1;
+
+function drawHud(r: Canvas2DRenderer, st: GameState): void {
+  if (!isMultiplayer(st)) {
+    const p0 = st.players[0];
+    r.text(`SCORE ${String(p0?.score ?? 0).padStart(6, '0')}`, 4, 0, COLORS.hud);
+    r.text(`LV ${st.level + 1}`, r.width / 2, 0, COLORS.hud, 8, 'center');
+    for (let i = 0; i < st.lives; i++) {
+      r.rect(r.width - 8 - i * 7, 1, 5, 5, SLOT_COLORS[0]!.body);
+    }
+    return;
   }
+  // Multiplayer: one tinted score per joined slot, level in the middle.
+  st.players.forEach((p, slot) => {
+    if (!p) return;
+    const x = 4 + slot * 56;
+    const color = p.phase === 'despawned' ? COLORS.hudDim : SLOT_COLORS[slot]!.body;
+    r.text(String(p.score).padStart(6, '0'), x, 0, color, 8);
+  });
+  r.text(`LV ${st.level + 1}`, r.width - 4, 0, COLORS.hud, 8, 'right');
 }
 
 function drawCenteredBanner(r: Canvas2DRenderer, lines: string[], color: string): void {
@@ -96,10 +124,48 @@ function drawCenteredBanner(r: Canvas2DRenderer, lines: string[], color: string)
   });
 }
 
-export function render(r: Canvas2DRenderer, sim: BubbleBuddiesSim): void {
-  const st = sim.state;
+function drawPlayer(
+  r: Canvas2DRenderer,
+  st: GameState,
+  p: PlayerState,
+  slot: number,
+  overlay: RenderOverlay,
+): void {
+  const { body, shade } = SLOT_COLORS[slot]!;
+  if (p.phase === 'bubble') {
+    // Rescue bubble: the buddy squished inside a bubble, drifting up.
+    const cx = px(p.x) + C.BUBBLE_HITBOX / 2;
+    const cy = px(p.y) + C.BUBBLE_HITBOX / 2;
+    drawCritter(r, cx - 4, cy - 4, 8, 8, -1, body, shade);
+    r.circle(cx, cy, C.BUBBLE_HITBOX / 2, COLORS.bubbleFill);
+    r.circleOutline(cx, cy, C.BUBBLE_HITBOX / 2, body);
+    return;
+  }
+  if (p.phase !== 'alive') return;
+  const blink = p.invuln > 0 && Math.floor(st.tick / 4) % 2 === 0;
+  drawCritter(r, px(p.x), px(p.y), C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H, p.facing, body, shade, blink);
+  if (overlay.localSlot === slot && isMultiplayer(st)) {
+    // Tiny "you" marker above your own buddy.
+    r.rect(px(p.x) + C.PLAYER_HITBOX_W / 2 - 1, px(p.y) - 4, 2, 2, body);
+  }
+  const emote = overlay.emotes?.get(slot);
+  if (emote) {
+    const ex = px(p.x) + C.PLAYER_HITBOX_W / 2;
+    const ey = px(p.y) - 12;
+    r.rect(ex - 7, ey - 2, 14, 12, '#ffffff');
+    r.rect(ex - 1, ey + 10, 2, 2, '#ffffff'); // speech tail
+    r.text(emote, ex, ey, '#1f2937', 8, 'center');
+  }
+}
+
+export function render(
+  r: Canvas2DRenderer,
+  map: TileMap,
+  st: GameState,
+  overlay: RenderOverlay = {},
+): void {
   r.clear(COLORS.bg);
-  drawTiles(r, sim);
+  drawTiles(r, map);
 
   for (const f of st.fruit) {
     if (f.kind === 'grumble') {
@@ -123,12 +189,9 @@ export function render(r: Canvas2DRenderer, sim: BubbleBuddiesSim): void {
   }
 
   if (st.mode !== 'death') {
-    const p = st.player;
-    const blink = p.invuln > 0 && Math.floor(st.tick / 4) % 2 === 0;
-    drawCritter(
-      r, px(p.x), px(p.y), C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H, p.facing,
-      COLORS.player, COLORS.playerShade, blink,
-    );
+    st.players.forEach((p, slot) => {
+      if (p) drawPlayer(r, st, p, slot, overlay);
+    });
   }
 
   for (const b of st.bubbles) {
@@ -146,13 +209,14 @@ export function render(r: Canvas2DRenderer, sim: BubbleBuddiesSim): void {
     r.rect(cx - 3, cy - 4, 2, 2, '#ffffff'); // shine
   }
 
-  drawHud(r, sim);
+  drawHud(r, st);
 
+  const teamScore = st.players.reduce((sum, p) => sum + (p?.score ?? 0), 0);
   if (st.mode === 'levelclear') {
-    drawCenteredBanner(r, ['LEVEL CLEAR!', `get ready for level ${Math.min(st.level + 2, C.LEVEL_COUNT)}`], COLORS.player);
+    drawCenteredBanner(r, ['LEVEL CLEAR!', `get ready for level ${Math.min(st.level + 2, C.LEVEL_COUNT)}`], SLOT_COLORS[0]!.body);
   } else if (st.mode === 'gameover') {
-    drawCenteredBanner(r, ['GAME OVER', `score ${st.score}`, 'press any key'], COLORS.angry);
+    drawCenteredBanner(r, ['GAME OVER', `score ${teamScore}`, 'press any key'], COLORS.angry);
   } else if (st.mode === 'win') {
-    drawCenteredBanner(r, ['YOU WIN!', `score ${st.score}`, 'press any key'], COLORS.banana);
+    drawCenteredBanner(r, ['YOU WIN!', `score ${teamScore}`, 'press any key'], COLORS.banana);
   }
 }

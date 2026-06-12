@@ -55,3 +55,11 @@ export const EXTRA_LIFE_SCORE = 30000;
 // §7 Levels
 export const LEVEL_CLEAR_PAUSE_TICKS = 180;
 export const LEVEL_COUNT = 5;
+
+// §11 Multiplayer
+export const MAX_PLAYERS = 4;
+/** Tiles right of the level's `P` marker, per slot. */
+export const PLAYER_SPAWN_OFFSETS = [0, 2, -2, 4] as const;
+export const RESCUE_FLOAT_SPEED = -64;
+export const RESCUE_POP_INVULN_TICKS = 120;
+export const DISCONNECT_GRACE_TICKS = 300;

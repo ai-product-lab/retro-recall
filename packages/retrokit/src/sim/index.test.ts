@@ -12,7 +12,7 @@ import {
   moveAABB,
   replay,
   type GameSim,
-  type InputBits,
+  type SlotInputs,
 } from './index';
 
 describe('rng', () => {
@@ -158,7 +158,8 @@ describe('determinism replay', () => {
       this.rng = new Rng(seed);
     }
 
-    tick(input: InputBits): void {
+    tick(inputs: SlotInputs): void {
+      const input = inputs[0] ?? 0;
       const vx = (input & Button.Right ? 192 : 0) - (input & Button.Left ? 192 : 0);
       this.vy = Math.min(this.vy + 16, 512);
       const res = moveAABB(this.map, this.x, this.y, 8, 8, vx, this.vy);
@@ -217,11 +218,11 @@ describe('determinism replay', () => {
     const inputs = Array.from({ length: 120 }, (_, i) =>
       (i % 3 === 0 ? Button.Right : 0) | (i % 17 === 0 ? Button.A : 0) | (i % 5 === 0 ? Button.B : 0),
     );
-    for (const bits of inputs) a.tick(bits);
+    for (const bits of inputs) a.tick([bits]);
     // b replays the same inputs but hashes after every tick.
     const hashes: number[] = [];
     for (const bits of inputs) {
-      b.tick(bits);
+      b.tick([bits]);
       hashes.push(b.hash());
     }
     expect(b.hash()).toBe(a.hash());
