@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@retro-recall/netcode": "workspace:*",
     "@retro-recall/retrokit": "workspace:*"
   },
   "devDependencies": {
