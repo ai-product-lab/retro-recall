@@ -30,9 +30,12 @@ Read CLAUDE.md and required reading, plus `games/bubble-buddies/SPEC.md` §11
    page with the "start a call first" nudge and in-app-browser → "Open in
    Safari" escape. Emote wheel as a touch-friendly radial on B-hold.
 
-5. **Deploy & demo:** deploy to Cloudflare (Pages + Worker + DO). Give me two
-   URLs and the room flow; I'll playtest from two phones on FaceTime. Then
-   devlog entry.
+5. **Deploy & demo:** deploy to Cloudflare (Pages + Worker + DO). Production
+   hostname: **retro-recall.ruralrooted.com** (zone `ruralrooted.com` is in
+   this account) — Pages custom domain for the site, Worker routes
+   `retro-recall.ruralrooted.com/api/*` and `/room/*` for the server, all
+   declared in config. Give me the URL and room flow; I'll playtest from two
+   phones on FaceTime. Then devlog entry.
 
 Constraints: sim changes only per SPEC §11 — solo replay fixture must stay
 green. Commit per step. No free-text chat anywhere. Cloudflare free plan:
