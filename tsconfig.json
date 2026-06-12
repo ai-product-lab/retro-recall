@@ -2,6 +2,8 @@
   "files": [],
   "references": [
     { "path": "packages/retrokit" },
-    { "path": "games/bubble-buddies" }
+    { "path": "packages/netcode" },
+    { "path": "games/bubble-buddies" },
+    { "path": "workers/rooms" }
   ]
 }

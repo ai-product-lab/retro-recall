@@ -1,0 +1,17 @@
+{
+  "name": "@retro-recall/netcode",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./protocol": "./src/protocol.ts",
+    "./room": "./src/room/core.ts",
+    "./client": "./src/client/index.ts"
+  },
+  "dependencies": {
+    "@retro-recall/retrokit": "workspace:*"
+  }
+}

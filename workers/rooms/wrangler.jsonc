@@ -1,0 +1,21 @@
+// Rooms server: one Durable Object per game room (ADR-001/ADR-003).
+// Free plan: Durable Objects require the SQLite backend (new_sqlite_classes).
+// The ROOMS KV namespace id is created via `wrangler kv namespace create ROOMS`
+// and pasted here — never via the dashboard, so the setup stays reproducible.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "retro-recall-rooms",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-01",
+  "durable_objects": {
+    "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoomDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoomDO"] }],
+  "kv_namespaces": [
+    { "binding": "ROOMS", "id": "rooms-kv-placeholder" }
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://retro-recall.ruralrooted.com"
+  },
+  "observability": { "enabled": true }
+}
