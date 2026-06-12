@@ -34,15 +34,39 @@
         padding: 1px 5px;
         color: #e5e7eb;
       }
+      .online { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+      .online button {
+        background: #1f2545; color: #8be0ff; border: 1px solid #3b4ec9;
+        border-radius: 4px; font-family: monospace; font-size: 13px;
+        padding: 8px 14px; cursor: pointer;
+      }
+      .online button:active { background: #3b4ec9; }
+      #join-form { display: flex; gap: 6px; }
+      #join-code {
+        width: 70px; text-transform: uppercase; text-align: center; letter-spacing: 3px;
+        background: #11173a; color: #fde047; border: 1px solid #3b4ec9;
+        border-radius: 4px; font-family: monospace; font-size: 14px; padding: 6px;
+      }
+      #online-status { color: #fde047; min-height: 16px; }
     </style>
   </head>
   <body>
     <h1>BUBBLE BUDDIES</h1>
+    <div class="online">
+      <button id="create-room">PLAY ONLINE — START A ROOM</button>
+      <form id="join-form">
+        <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off" />
+        <button type="submit">JOIN</button>
+      </form>
+    </div>
+    <p id="online-status"></p>
     <canvas id="game"></canvas>
     <p>
+      solo practice above ·
       <kbd>←</kbd><kbd>→</kbd> move · <kbd>Z</kbd>/<kbd>Space</kbd> jump ·
       <kbd>X</kbd> blow bubble
     </p>
     <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/home.ts"></script>
   </body>
 </html>

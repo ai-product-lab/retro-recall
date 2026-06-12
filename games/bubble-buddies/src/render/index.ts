@@ -152,7 +152,8 @@ function drawPlayer(
   if (emote) {
     const ex = px(p.x) + C.PLAYER_HITBOX_W / 2;
     const ey = px(p.y) - 12;
-    r.rect(ex - 7, ey - 2, 14, 12, '#ffffff');
+    const half = Math.max(emote.length * 5, 8) / 2 + 2;
+    r.rect(ex - half, ey - 2, half * 2, 12, '#ffffff');
     r.rect(ex - 1, ey + 10, 2, 2, '#ffffff'); // speech tail
     r.text(emote, ex, ey, '#1f2937', 8, 'center');
   }

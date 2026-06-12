@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <title>Bubble Buddies — Play Together</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        background: #06061a;
+        color: #9ca3af;
+        font-family: monospace;
+        padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+                 max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+        touch-action: manipulation;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      h1 { color: #8be0ff; font-size: 16px; letter-spacing: 3px; margin: 4px 0 0; }
+      .room-line { display: flex; gap: 8px; align-items: center; }
+      .room-code { color: #fde047; font-size: 20px; letter-spacing: 6px; }
+      button {
+        background: #1f2545; color: #e5e7eb; border: 1px solid #3b4ec9;
+        border-radius: 4px; font-family: monospace; font-size: 13px;
+        padding: 6px 10px; cursor: pointer;
+      }
+      button:active { background: #3b4ec9; }
+      .banner {
+        max-width: 480px; text-align: center; font-size: 12px; line-height: 1.5;
+        background: #11173a; border: 1px solid #27348f; border-radius: 6px; padding: 8px 12px;
+      }
+      .banner.warn { border-color: #b45309; background: #2a1a05; color: #fcd34d; }
+      .banner strong { color: #8be0ff; }
+      .hidden { display: none !important; }
+      #players { display: flex; gap: 10px; font-size: 12px; min-height: 16px; }
+      #players .me { text-decoration: underline; }
+      #players .off { opacity: 0.45; }
+      canvas { border: 4px solid #27348f; border-radius: 4px; max-width: 100%; }
+      #status { font-size: 12px; min-height: 14px; }
+      #status.bad { color: #f87171; }
+
+      /* Name overlay */
+      #name-overlay {
+        position: fixed; inset: 0; background: rgba(3, 3, 16, 0.92);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        z-index: 30; text-align: center; padding: 20px;
+      }
+      #name-overlay input {
+        background: #11173a; color: #fff; border: 1px solid #3b4ec9; border-radius: 4px;
+        font-family: monospace; font-size: 18px; padding: 8px 10px; text-align: center; width: 220px;
+      }
+      #name-overlay button { font-size: 16px; padding: 10px 22px; }
+
+      /* Touch pad */
+      .touchpad {
+        position: fixed; left: 0; right: 0; bottom: 0; display: flex;
+        justify-content: space-between; padding: 0 14px calc(14px + env(safe-area-inset-bottom));
+        pointer-events: none; z-index: 10;
+      }
+      .tcluster { display: flex; gap: 12px; align-items: flex-end; pointer-events: auto; }
+      .tbtn {
+        width: 64px; height: 64px; border-radius: 50%; font-size: 22px;
+        background: rgba(31, 37, 69, 0.8); border: 2px solid #3b4ec9; color: #8be0ff;
+        touch-action: none;
+      }
+      .tbtn.held { background: #3b4ec9; }
+      .tbtn.a { border-color: #22a857; color: #4ade80; }
+      .tbtn.b { border-color: #d96a16; color: #fb923c; }
+
+      /* Emote wheel */
+      .emote-wheel {
+        position: fixed; inset: 0; z-index: 20;
+        background: rgba(3, 3, 16, 0.55);
+      }
+      .emote-option {
+        position: absolute; transform: translate(-50%, -50%);
+        min-width: 64px; height: 44px; border-radius: 22px; font-size: 13px;
+        background: #11173a; border: 2px solid #3b4ec9; color: #e5e7eb;
+      }
+      .emote-option.hot { background: #3b4ec9; border-color: #8be0ff; color: #fff; }
+      .emote-hint {
+        position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        font-size: 11px; color: #9ca3af;
+      }
+      kbd { background: #1f2545; border-radius: 3px; padding: 1px 5px; color: #e5e7eb; }
+      .keys { font-size: 12px; }
+      @media (pointer: coarse) { .keys { display: none; } }
+    </style>
+  </head>
+  <body>
+    <h1>BUBBLE BUDDIES</h1>
+
+    <div class="room-line">
+      <span>room</span>
+      <span class="room-code" id="room-code">····</span>
+      <button id="share">share link</button>
+    </div>
+
+    <div class="banner warn hidden" id="inapp-banner">
+      this chat app's built-in browser can't run games well —
+      <strong>open in your real browser</strong> to play.<br />
+      <button id="escape-browser" style="margin-top:6px">Open in Safari</button>
+      <div id="escape-fallback" class="hidden" style="margin-top:6px">
+        if nothing happened: tap <strong>···</strong> in the corner, then
+        <strong>Open in Browser</strong>
+      </div>
+    </div>
+
+    <div class="banner" id="call-nudge">
+      📞 <strong>start a call first</strong> — FaceTime, WhatsApp, whatever you use —
+      then everyone taps the room link. talking makes it twice the fun.
+    </div>
+
+    <div id="players"></div>
+    <canvas id="game"></canvas>
+    <div id="status">connecting…</div>
+    <p class="keys">
+      <kbd>←</kbd><kbd>→</kbd> move · <kbd>Z</kbd>/<kbd>Space</kbd> jump ·
+      <kbd>X</kbd> blow · <strong>hold</strong> <kbd>X</kbd> emotes
+    </p>
+
+    <div id="name-overlay">
+      <div class="banner">joining room <span class="room-code" id="overlay-code"></span></div>
+      <div id="room-roster" style="font-size:12px"></div>
+      <input id="name-input" maxlength="12" placeholder="your name" autocomplete="off" />
+      <button id="join-btn">JOIN GAME</button>
+    </div>
+
+    <script type="module" src="/src/play.ts"></script>
+  </body>
+</html>
