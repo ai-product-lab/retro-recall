@@ -6,15 +6,19 @@ Each phase ends with something playable (Principle 7). Durations are rough, assu
 
 Principles, architecture, ADRs, branding. *This document set.*
 
-## Phase 1 — First playable (~2–3 weeks)
+## Phase 1 — First playable ✅ (June 2026)
 
-Monorepo scaffold; RetroKit core (sim loop, tiles, AABB physics, sprites, input, seeded RNG, state hashing); Bubble Buddies sim per `SPEC.md` — one player, placeholder sprites, 5 levels: move, jump, blow bubbles, trap and pop enemies. Deployed to a Cloudflare Pages preview URL.
-**Demo:** Kevin plays it in a browser and it feels like the real thing.
+Monorepo scaffold; RetroKit core (sim loop, tiles, AABB physics, sprites, input, seeded RNG, state hashing); Bubble Buddies sim per `SPEC.md` — one player, placeholder sprites, 5 levels, 33 tests including golden replay fixture. See `docs/devlog.md`.
+
+## Phase 1.5 — Mobile pass (~1 week) ← CURRENT
+
+iPhone-first PWA per ADR-007: dual-orientation touch layout — landscape = centered 4:3 playfield with d-pad/A-B in the pillarbox bars (NES style); portrait = playfield top, controller below (Game Boy style). Touch zones → existing input bitmask; zero sim/level changes. Manifest + service worker + "pin me" flow, safe-area layout, tap-to-start audio unlock. Deploy to Cloudflare Pages preview.
+**Demo:** Kevin's kid plays it from a home-screen icon, thumbs only.
 
 ## Phase 2 — Online co-op (~2–3 weeks)
 
-Durable Object room + WebSocket transport; server-authoritative sim with prediction/interpolation (ADR-003); room codes ("play with this link"); determinism CI tests; 2–4 players.
-**Demo:** Kevin and a friend pop the same enemy from different houses.
+Durable Object room + WebSocket transport; server-authoritative sim with prediction/interpolation (ADR-003); room codes ("play with this link"); invite page with "start a FaceTime, then tap" flow + ping/emote wheel (ADR-008 Tiers 0–1); determinism CI tests; 2–4 players.
+**Demo:** Kevin and a friend pop the same enemy from different houses, talking on FaceTime.
 
 ## Phase 3 — Become the character (~2 weeks)
 
@@ -32,4 +36,4 @@ Game #2 from a different design grammar (e.g., maze-chase or vertical climber) b
 
 ## Later / parking lot
 
-Versus modes (rollback netcode — the deterministic core keeps this open), gamepad support, mobile touch controls, level editor for the kids, sound/music toolchain, accounts (only if a feature truly needs them).
+Versus modes (rollback netcode — the deterministic core keeps this open), embedded voice in private rooms via Cloudflare Realtime (ADR-008 Tier 2 — only if FaceTime-alongside proves clumsy), gamepad support, level editor for the kids, sound/music toolchain, accounts (only if a feature truly needs them).

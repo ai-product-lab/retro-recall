@@ -1,4 +1,4 @@
-# Bubble Buddies — Game Spec (v1, Phase 1 single-player)
+# Bubble Buddies — Game Spec (v2: Phase 1 single-player + Phase 2 multiplayer in §11)
 
 Design grammar: single-screen co-op platformer — trap enemies in projectiles,
 pop them for points, clear the screen, next level. This spec is the source of
@@ -341,9 +341,52 @@ introduced → mixed finale. Platform layers are 4 tiles apart (jump is 4.7).
 ################################
 ```
 
-## 11. Out of scope for v1 (parking lot)
+## 11. Multiplayer (Phase 2)
 
-- Second player / netcode (Phase 2)
+Co-op for `MAX_PLAYERS` = 4. The sim stays a pure function of inputs: `tick()`
+takes an **array of input bitmasks indexed by player slot** (0–3). Empty slots
+contribute a zero bitmask. Transport/rooms are specified in
+`packages/netcode/SPEC.md`; nothing in this section knows about networks.
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `MAX_PLAYERS` | 4 | player slots 0–3, distinct palette tints |
+| `PLAYER_SPAWN_OFFSETS` | [0, +2, −2, +4] | tiles right of the level's `P`, per slot |
+| `RESCUE_FLOAT_SPEED` | −64 | subpx/tick; downed player's rescue bubble drifts up (same feel as bubble float) |
+| `RESCUE_POP_INVULN_TICKS` | 120 | invulnerability after a buddy revives you |
+| `DISCONNECT_GRACE_TICKS` | 300 | 5 s without inputs before a player despawns |
+
+Rules:
+
+- **Spawning:** slot n spawns at `P` + `PLAYER_SPAWN_OFFSETS[n]` tiles. Joiners
+  mid-level **spectate until the next level loads**, then spawn active.
+- **Buddy revive (2+ active players):** lives are not used. On death, the
+  player becomes a **rescue bubble**: floats up at `RESCUE_FLOAT_SPEED`, rests
+  bobbing at the ceiling (same bob constants as §4), harmless and unpoppable
+  by enemies, passes through `=` platforms. Any living teammate touching it
+  pops it: the player respawns *at the rescue bubble's position* with
+  `RESCUE_POP_INVULN_TICKS` invulnerability. Rescue bubbles also auto-pop
+  (revive) on level clear. **Game over only when every active player is a
+  rescue bubble simultaneously.**
+- **Solo mode unchanged:** with exactly one active player, §3 classic lives
+  apply (`PLAYER_START_LIVES`, respawn at `P`). If a second player joins
+  mid-game, the game switches to revive rules at the next level load.
+- **Disconnect:** a slot receiving no inputs for `DISCONNECT_GRACE_TICKS`
+  despawns (its rescue bubble, if any, despawns too). The netcode layer may
+  re-activate the slot on rejoin: the player spawns at their slot offset with
+  `RESCUE_POP_INVULN_TICKS` invulnerability, keeping their score. Game-over
+  evaluation ignores despawned slots.
+- **Score is per-player** (HUD shows each tint's score + team total). Chain
+  pops credit the player who initiated the pop; fruit credits the collector.
+  `EXTRA_LIFE_SCORE` applies only in solo mode.
+- **No friendly fire:** players pass through each other; a player can pop any
+  bubble regardless of who blew it (chains are shared toys, on purpose).
+- **Determinism note:** players update in slot order within the player phase
+  of §9's update order; everything else is unchanged. Replay fixtures for
+  multiplayer record all four input streams.
+
+## 12. Out of scope for v1 (parking lot)
+
 - Vertical screen wrap through floor gaps
 - Riding/bouncing on bubbles as platforms
 - Special bubbles (water, lightning), power-ups, "hurry up" anti-stall enemy

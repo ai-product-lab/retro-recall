@@ -10,7 +10,7 @@ A web arcade of original games inspired by NES classics, with online multiplayer
 
 1. `docs/PRINCIPLES.md` — non-negotiables; earlier principles win conflicts
 2. `docs/ARCHITECTURE.md` — stack, monorepo layout, cross-cutting rules
-3. `docs/decisions/ADR-001..006` — the why behind hosting, engine, netcode, avatars, IP, factory
+3. `docs/decisions/ADR-001..008` — the why behind hosting, engine, netcode, avatars, IP, factory, mobile-first PWA, comms
 4. `docs/ROADMAP.md` — current phase and demo target
 
 ## Hard rules
@@ -30,4 +30,4 @@ A web arcade of original games inspired by NES classics, with online multiplayer
 
 ## Current phase
 
-**Phase 1 — First playable.** Kickoff prompt: `docs/PHASE-1-KICKOFF.md`. Demo target: Kevin plays single-player Bubble Buddies in a browser — move, jump, blow bubbles, trap and pop enemies, 5 levels, placeholder sprites.
+**Phase 1.5 — Mobile pass** (Phase 1 complete — see `docs/devlog.md`). iPhone-first PWA per ADR-007. Layout: landscape = centered 4:3 playfield, d-pad in left pillarbox bar, A/B in right (NES style); portrait = playfield top, controller below (Game Boy style); live switch on rotate. Touch zones feed the existing input bitmask. Plus: manifest/service worker, "Add to Home Screen" flow, safe-area handling, tap-to-start audio unlock. Strictly shell-layer — the sim, levels, and golden replay fixture must not change.
