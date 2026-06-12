@@ -7,11 +7,17 @@
 
 export { isRoomCode as isRoomCodeLike } from '@retro-recall/netcode';
 
+/** On the production hostname, /api and /room are same-origin Worker routes;
+ *  pages.dev previews fall back to the workers.dev URL baked in at build. */
+const CANONICAL_HOST = 'retro-recall.ruralrooted.com';
+
 export const ROOMS_ORIGIN: string =
-  (import.meta.env['VITE_ROOMS_ORIGIN'] as string | undefined) ??
-  (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-    ? 'http://localhost:8787'
-    : location.origin);
+  location.hostname === CANONICAL_HOST
+    ? location.origin
+    : ((import.meta.env['VITE_ROOMS_ORIGIN'] as string | undefined) ??
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        ? 'http://localhost:8787'
+        : location.origin));
 
 export const wsUrl = (code: string): string =>
   `${ROOMS_ORIGIN.replace(/^http/, 'ws')}/room/${code}`;

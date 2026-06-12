@@ -12,10 +12,16 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoomDO"] }],
   "kv_namespaces": [
-    { "binding": "ROOMS", "id": "rooms-kv-placeholder" }
+    { "binding": "ROOMS", "id": "262c74e1e7d6496d829d9bc72e76afa6" }
   ],
   "vars": {
     "PUBLIC_ORIGIN": "https://retro-recall.ruralrooted.com"
   },
+  // Same-origin API/WS on the production hostname (Pages serves the site).
+  "routes": [
+    { "pattern": "retro-recall.ruralrooted.com/api/*", "zone_name": "ruralrooted.com" },
+    { "pattern": "retro-recall.ruralrooted.com/room/*", "zone_name": "ruralrooted.com" }
+  ],
+  "workers_dev": true,
   "observability": { "enabled": true }
 }
