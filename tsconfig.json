@@ -5,6 +5,8 @@
     { "path": "packages/netcode" },
     { "path": "packages/avatar" },
     { "path": "games/bubble-buddies" },
+    { "path": "games/ramp-riders" },
+    { "path": "site" },
     { "path": "workers/rooms" },
     { "path": "workers/avatar" }
   ]

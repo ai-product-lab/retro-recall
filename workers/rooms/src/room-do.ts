@@ -6,7 +6,7 @@
  */
 import { DurableObject } from 'cloudflare:workers';
 import { ROOM_TTL_S, RoomCore } from '@retro-recall/netcode';
-import { BubbleBuddiesSim } from '@retro-recall/bubble-buddies';
+import { simFactory } from './games';
 import type { Env } from './index';
 
 const TICK_MS = 1000 / 60;
@@ -35,10 +35,13 @@ export class GameRoomDO extends DurableObject<Env> {
       await this.ctx.storage.put('seed', seed);
     }
     const persisted = await this.ctx.storage.get<string>('room');
+    // Which game this room hosts (default keeps pre-registry rooms on the
+    // original sim, byte-for-byte). Player count 0: all players enter via
+    // joinPlayer().
+    const game = await this.ctx.storage.get<string>('game');
     this.core = new RoomCore(
       {
-        // Player count 0: every player enters through joinPlayer().
-        createSim: (s) => new BubbleBuddiesSim(s, 0, 0),
+        createSim: simFactory(game),
         seed,
         send: (connId, data) => {
           try {
@@ -76,9 +79,10 @@ export class GameRoomDO extends DurableObject<Env> {
 
   // --- RPC (called by the routing worker / tests) ---
 
-  /** Stamp the room with its code and arm the expiry alarm. */
-  async init(code: string): Promise<void> {
+  /** Stamp the room with its code and game, and arm the expiry alarm. */
+  async init(code: string, game?: string): Promise<void> {
     await this.ctx.storage.put('code', code);
+    if (game !== undefined) await this.ctx.storage.put('game', game);
     await this.touchActivity();
   }
 

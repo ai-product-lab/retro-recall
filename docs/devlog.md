@@ -178,6 +178,76 @@ Deployed to retro-recall.pages.dev. Phase gate remaining: Kevin's two-phone
 playtest (now doubling as the Phase 2 leftover), plus the Phase 2 DNS
 CNAME, both human-run.
 
+## 2026-06-12 — Phase 4a: the library, the engine it needs, and the factory
+
+The arcade goes from one game to four. ADR-009 splits the work: build the
+shared stuff first on one branch (this one), *then* three game worktrees in
+parallel. This is that first branch. Three deliverables, in order — engine,
+library, scaffolder — because the order is the whole point: freeze the shared
+surface before three sessions start writing against it.
+
+**Engine extensions, proven additive.** The three BRIEFs were audited for what
+≥2 games need; that landed in RetroKit. A camera (follow-with-deadzone, world
+clamp, forward lock for lock-and-advance, boss-pin) — kept deliberately *out*
+of the sim core, because a camera is per-client and racing follows your own
+rider; a camera feeding the sim would desync netcode. Big maps (the tile grid
+was always dimension-agnostic; pinned that down + a cull window). Slope tiles
+(22.5°/45°) in the integer physics — the one real physics-core change. And
+camera-triggered spawn regions, which despite the name trigger off a *sim-owned
+monotonic progress scalar*, never a render camera, so co-op clients spawn the
+same enemies.
+
+The slope change is where determinism could have broken. The guard is
+structural, not vigilance: `TileMap.hasSlopes` is computed at parse and false
+for every Bubble Buddies map, so `moveAABB` runs the byte-identical pre-slope
+path unless a map actually contains a ramp. Proof, not assertion — both golden
+replay fixtures hash-matched the pre-work baseline byte-for-byte after the
+physics edit (checksummed before I touched anything, re-checked after). 31 new
+engine tests; 103 green total.
+
+**Library home.** A registry (`site/registry.ts`) is the single source of
+truth — one entry per game drives tiles, status, routes, and the coming-soon
+teasers. Bubble Buddies live; the other three are coming-soon tiles that *peek*
+(a bottom-sheet teaser pulled straight from each BRIEF, so the copy can't drift
+from the design). Mobile-first per ADR-007: 2-up portrait / 4-up wide via an
+auto-fit grid, safe-area padding, pixel-art thumbnails (original house glyphs,
+no trade dress), ≥44px hit areas, the one allowed "pop." Showed Kevin the
+layout before building it; both calls (teaser pages, a persistent cross-game
+JOIN CODE chip) came back as proposed.
+
+**The factory.** `pnpm new-game <id>` generates a complete game — deterministic
+sim implementing the full NetSim contract, SPEC template, renderer + dual-
+orientation touch shell, a replay test that self-writes its golden on first
+run, the play route — then wires the shared seams *additively* at stable
+anchors: the site registry, the rooms game registry, and the TS project graph.
+The enabling refactor was making the rooms DO pick its sim from a game→factory
+map instead of hardcoding Bubble Buddies; pre-registry rooms default to the
+same sim byte-for-byte, so a Stage-2 game worktree's only worker touch is
+appending one line (ADR-009's additive rule made literal).
+
+Proof it works: `pnpm new-game demo-game` → typecheck, lint, 4 tests (fixture
+self-written), build (both routes), and the stub *renders* a hero box resting
+on the floor. Then `--remove demo-game` returned `git status` to spotless —
+the factory is reversible, which is what makes it safe to run casually.
+
+**Friction, for the report card.** The cost wasn't the templates, it was the
+project-reference web: a new game's sim is imported by the worker, so it needs
+entries in the root tsconfig, the worker tsconfig, the worker package.json,
+*and* the worker source — four additive edits, all now driven by the
+scaffolder's anchors. Worth noting for the factory thesis: game #2 should be
+near-free on shared infra, but every game still pays one `pnpm install` (new
+workspace member) and owes its own SPEC before any code. Wall-clock for this
+branch was dominated by the engine (slopes especially — landing physics wants
+care), not the scaffolder.
+
+**Timing / what's left.** Engine + tests, then the gated library, then the
+scaffolder — five commits, all on `phase/library`, none on `main` (Kevin
+merges). The site's play routes assume the games are co-deployed under
+`/play/*` on Cloudflare Pages (true in prod, not in the standalone site dev
+server). Next: this branch merges to main first, then the three game worktrees
+(`game/puck-pals`, `game/splash-squad`, `game/ramp-riders`) start — each writes
+its SPEC for Kevin's approval before building.
+
 ## 2026-06-12 — Phase 3: Get Sprited (avatars + real art)
 
 The signature feature lands: upload a photo, become a pixel buddy, play as
@@ -242,3 +312,69 @@ one-liner — and the two-phone, real-photo phone demo is Kevin's to run.
 Phase gate remaining (human-run): Kevin's Gemini key + worker setup (R2
 bucket, KV namespace, `wrangler secret put GEMINI_API_KEY`), deploy, the
 Phase 2 DNS CNAME, and the photo-on-a-phone demo.
+
+## 2026-06-12 — Wave B: Ramp Riders playable (game #4, the factory's first parallel build)
+
+First game built in a Stage-2 worktree (`game/ramp-riders`), additive-only — no
+`packages/*` edits. Empty `games/ramp-riders/` (just a BRIEF) to a playable
+1–4 online BMX racer in one session.
+
+**The factory report card (the point of ADR-009 Stage 2).**
+- `pnpm new-game ramp-riders` did all the wiring — sim/renderer/shell stubs,
+  test+fixture harness, play route, and the four additive seam edits (root
+  tsconfig, worker tsconfig/package.json/games.ts) — and it built + tested
+  green out of the box. Game #4's *infra* cost was ~zero, exactly the thesis.
+- **Scaffolder friction (two real ones, both worth fixing before games #3/#4):**
+  (1) it `die`s if `games/<id>/` already exists, but a pre-written `BRIEF.md`
+  lives there — so I had to stash the BRIEF, remove the dir, scaffold, restore.
+  (2) it blindly inserts a registry entry even when one exists (Ramp Riders had
+  a hand-authored coming-soon tile), producing a duplicate I deleted by hand.
+  Both argue for a `--brief-exists` / idempotent-by-id registry insert.
+- Where the time actually went: **not** scaffolding — the terrain/physics. The
+  rest (constants, tracks, renderer, touch, netcode client) flowed from the SPEC
+  and from copying Bubble Buddies' conventions.
+
+**The one hard problem: slopes + a tall hitbox.** RetroKit's `moveAABB` resolves
+X then Y with slope tiles non-solid in the X pass, and the rider hitbox is ~2
+tiles tall. First two terrain attempts wedged the rider dead on a ramp: any
+**solid tile at the cresting box's foot row** is a wall the X pass slams into.
+Fix was geometric, not engine (additive rule held): ramps are clean slope-tile
+diagonals with **empty interiors** (solid only at ground rows); no elevated
+solid decks. That cost us the landable tabletop and down-ramp landings — v1
+ramps are pure launch kickers with forgiving flat landings (`AIR_ROTATE = 0`, a
+level pop lands clean with no input — right call for kids). Landable decks /
+lean-to-match-downslope are a polish follow-up. Lesson for the other worktrees:
+*the slope core wants either a shorter hitbox or a slope-aware X pass before
+mounded terrain gets rich* — a candidate engine PR, not a game hack.
+
+**Determinism held.** No gameplay RNG (sprinklers are tick-periodic), riders
+update in slot order, finish ties break by slot. 9 sim unit tests + a full-race
+golden fixture (`replay-001.json`, regenerated intentionally). Bubble Buddies'
+fixtures stayed **byte-identical** through the build — additive-only, proven.
+
+**Netcode (mode per BRIEF: 1–4 race).** Server side was one line
+(`games.ts` factory, scaffolded). Client predicts only its own rider and
+interpolates rivals between snapshots (riders never collide, so divergence is
+invisible — the latency-tolerant mode the BRIEF promised). Disconnect coasts to
+a stop, no CPU takeover. Per-rider "junior boost" (youngest-only) needs a
+netcode join-metadata field `JoinMsg` lacks — parked; v1 ships the room-level
+rubber-band toggle instead (additive, tested).
+
+**Art / IP (ADR-005 pass).** Original placeholder art only: a chunky kid-on-BMX
+silhouette (wheels/frame/helmet), dirt-and-grass terrain, cones/sprinklers/hose/
+mud — generic backyard, no Nintendo/Konami/Taito names, characters, or trade
+dress in identifiers, assets, or copy. "Excite Bike" appears only as internal
+inspiration in the BRIEF, never in code. Avatar body rigs await `packages/avatar`
+landing on main (Phase 3, concurrent worktree) — renderer-only, sim is
+avatar-agnostic.
+
+**Verified.** typecheck + lint clean; full suite 105 + 8 rooms green; both
+routes build; headless-browser smoke of the solo race (renders, no console
+errors) and the online join overlay.
+
+**What's left before the registry flips coming-soon → live (gate per ADR-009):**
+CI green ✓ and IP review ✓ are done; the **two-phone playtest is human-run** and
+still owed, so the tile stays coming-soon. Flipping is a one-liner once it
+passes: set `status: 'live'` + `route: '/play/ramp-riders/'` on the registry
+entry. Tuning expected from the playtest — track lengths land ~20–26 s at full
+boost (short of the 45–90 s target; bump repeat counts), and landing feel.

@@ -14,3 +14,4 @@ export * from './rng';
 export * from './hash';
 export * from './tilemap';
 export * from './physics';
+export * from './spawn';
