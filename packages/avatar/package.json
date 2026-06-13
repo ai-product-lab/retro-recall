@@ -13,7 +13,8 @@
     "./png": "./src/png.ts"
   },
   "scripts": {
-    "gen": "tsx scripts/gen.ts"
+    "gen": "tsx scripts/gen.ts",
+    "compose": "tsx scripts/compose.ts"
   },
   "devDependencies": {
     "sharp": "^0.33.0",
