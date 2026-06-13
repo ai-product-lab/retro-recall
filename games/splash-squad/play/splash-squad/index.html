@@ -51,6 +51,15 @@
       #status.bad { color: #ff6b6b; }
       .hud-row { display: flex; gap: 10px; align-items: center; }
       #share { background: none; border: 1px solid #4cc9f0; color: #4cc9f0; border-radius: 6px; padding: 2px 8px; }
+      #avatar-pick { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+      .avatar-label { font-size: 13px; color: #8a8fa3; margin: 0; }
+      #avatar-options { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 360px; }
+      .avatar-opt { width: 56px; height: 56px; padding: 0; border: 2px solid #2a3158; border-radius: 8px; background: #161a2e; cursor: pointer; }
+      .avatar-opt canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+      .avatar-opt.selected { border-color: #3df5a6; }
+      .avatar-opt.broken { opacity: 0.3; }
+      #avatar-photo { background: #161a2e; color: #4cc9f0; border: 1px solid #4cc9f0; border-radius: 8px; font-weight: 600; padding: 8px 14px; }
+      #avatar-status { font-size: 12px; color: #ffd166; min-height: 14px; margin: 0; }
     </style>
   </head>
   <body>
@@ -81,6 +90,13 @@
       <h1>SPLASH SQUAD</h1>
       <p>Backyard co-op — soak the wind-up robots together.</p>
       <p id="roster"></p>
+      <div id="avatar-pick">
+        <p class="avatar-label">pick your buddy — or snap a photo to become one</p>
+        <div id="avatar-options"></div>
+        <button id="avatar-photo" type="button">📷 use my photo</button>
+        <input id="avatar-file" type="file" accept="image/*" capture="user" hidden />
+        <p id="avatar-status"></p>
+      </div>
       <input id="name-input" maxlength="12" placeholder="your name" autocomplete="off" />
       <button id="join-btn">JOIN THE SQUAD</button>
       <small>Tip: start a video call first, then tap INVITE to share the room.</small>

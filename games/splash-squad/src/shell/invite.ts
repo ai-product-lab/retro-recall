@@ -17,6 +17,17 @@ export const ROOMS_ORIGIN: string =
 export const wsUrl = (code: string): string =>
   `${ROOMS_ORIGIN.replace(/^http/, 'ws')}/room/${code}`;
 
+/** Avatar Worker origin (ADR-004). Same-origin in prod; a build-time override
+ *  or the local avatar worker (:8788) otherwise. A missing/unreachable origin
+ *  just degrades to the fallback gallery — generation is never required. */
+export const AVATARS_ORIGIN: string =
+  location.hostname === CANONICAL_HOST
+    ? location.origin
+    : ((import.meta.env['VITE_AVATARS_ORIGIN'] as string | undefined) ??
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        ? 'http://localhost:8788'
+        : location.origin));
+
 export interface RoomInfo {
   code: string;
   players: { slot: number; name: string; connected: boolean }[];
