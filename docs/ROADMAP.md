@@ -19,19 +19,24 @@ Durable Object room + WebSocket transport; server-authoritative sim with predict
 Phase 2 shipped a stopgap touch pad; on a real iPhone the game still assumes keyboards and desktop ratios. Full ADR-007 pass: dual-orientation layout — landscape = centered 4:3 playfield with d-pad/A-B in the pillarbox bars (NES style); portrait = playfield top, controller below (Game Boy style), live switch on rotate; correct integer scaling (no stretched ratios); input hints adapt to device (no keyboard legends on touch); manifest + service worker + "pin me" flow; safe-area layout; tap-to-start audio unlock. Zero sim/level changes.
 **Demo:** Kevin's kid plays a full co-op session from a home-screen icon, thumbs only.
 
-## Phase 3 — Become the character (~2 weeks)
+## Wave A — two parallel worktrees (after 2.5 closes)
 
-Avatar Worker: upload → Gemini image-to-image → palette quantize → composite onto body rigs → moderation → R2 cache (ADR-004). Fallback creature gallery. Original art pass replaces placeholders (house style per BRAND.md).
+**Phase 3 — Get Sprited** (`docs/PHASE-3-KICKOFF.md`): avatar pipeline per ADR-004, built against Bubble Buddies. Kevin's ops: Gemini API key.
 **Demo:** the kids upload photos and chase each other around level 3 as themselves.
 
-## Phase 4 — The arcade & the field guide (~2–3 weeks)
+**Phase 4a — The Library** (`docs/PHASE-4-KICKOFF.md`, ADR-009): arcade shell with game registry + tiles, `pnpm new-game` scaffolder, and the shared engine extensions the three game BRIEFs demand (camera/scrolling, big maps, slope tiles, spawn regions).
+**Demo:** the site is a library; Bubble Buddies is tile #1; three "coming soon" tiles.
 
-Arcade site shell (Astro): home, game pages, how-it-works. Field Guide section with the first write-ups (this doc set, the determinism testing story, the avatar pipeline). `pnpm new-game` scaffolder proven by starting game #2.
-**Demo:** retrorecall.com (or chosen domain) is live and shareable; a stranger could read how it was built.
+Disjoint surfaces (avatar = workers/packages + join flow; library = site shell + engine core), so they can run concurrently; library merges first if both finish together.
 
-## Phase 5 — The factory proves itself (ongoing)
+## Wave B — three concurrent game worktrees (after Wave A merges)
 
-Game #2 from a different design grammar (e.g., maze-chase or vertical climber) built primarily via spec + scaffold + skills, measuring how much faster it goes. Leaderboards (D1), replays as shareable links, seasonal level packs. Publish skills publicly.
+**Phase 4b — Puck Pals · Splash Squad · Ramp Riders** (BRIEFs in `games/*/BRIEF.md`): one worktree and Claude Code session each, additive-only per ADR-009's engine-change protocol. Spec-first in each. Each adopts avatars via per-game body rigs. Factory metrics in the devlog: wall-clock per game, engine PRs needed, scaffolder gaps.
+**Demo:** four playable tiles; family game night has a *choice*.
+
+## Phase 5 — The field guide & the factory's report card (ongoing)
+
+Field Guide section on the site: this doc set, the determinism story, the avatar pipeline, the Wave B parallel-build experiment with real numbers. Skills published. Leaderboards (D1), shareable replays, seasonal level packs, Ramp Riders track editor.
 
 ## Later / parking lot
 
