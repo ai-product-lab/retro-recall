@@ -1,0 +1,23 @@
+{
+  "name": "@retro-recall/avatar",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./style-prompt": "./src/style-prompt.ts",
+    "./palette": "./src/palette.ts",
+    "./quantize": "./src/quantize.ts",
+    "./png": "./src/png.ts"
+  },
+  "scripts": {
+    "gen": "tsx scripts/gen.ts"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.0",
+    "tsx": "^4.19.0",
+    "vitest": "^3.2.0"
+  }
+}
