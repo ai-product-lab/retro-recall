@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0F1222" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Splash Squad" />
+    <title>Splash Squad</title>
+  </head>
+  <body>
+    <div id="stage">
+      <div id="arena">
+        <header id="hud">
+          <div class="hud-row">
+            <span class="hud-title">SPLASH SQUAD</span>
+          </div>
+        </header>
+
+        <canvas id="game"></canvas>
+        <button id="start-gate">
+          <span class="gate-bubble">▶</span>
+          <span class="gate-label touch-only">TAP TO START</span>
+          <span class="gate-label keys-only">CLICK TO START</span>
+          <small>solo practice — grab buddies with PLAY ONLINE</small>
+        </button>
+
+        <div id="dpad" class="ctl-zone" hidden></div>
+        <div id="abzone" class="ctl-zone" hidden></div>
+
+        <p class="keys keys-only">
+          <kbd>←</kbd><kbd>→</kbd> move · <kbd>↑</kbd><kbd>↓</kbd> aim ·
+          <kbd>Z</kbd>/<kbd>Space</kbd> jump · <kbd>X</kbd> soak
+        </p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

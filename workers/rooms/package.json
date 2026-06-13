@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@retro-recall/splash-squad": "workspace:*",
     "@retro-recall/ramp-riders": "workspace:*",
     "@retro-recall/bubble-buddies": "workspace:*",
     "@retro-recall/netcode": "workspace:*",

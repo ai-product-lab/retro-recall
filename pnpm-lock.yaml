@@ -65,6 +65,22 @@ importers:
         specifier: ^7.1.0
         version: 7.3.5(@types/node@25.9.3)(tsx@4.22.4)
 
+  games/splash-squad:
+    dependencies:
+      '@retro-recall/netcode':
+        specifier: workspace:*
+        version: link:../../packages/netcode
+      '@retro-recall/retrokit':
+        specifier: workspace:*
+        version: link:../../packages/retrokit
+      '@retro-recall/shell':
+        specifier: workspace:*
+        version: link:../../packages/shell
+    devDependencies:
+      vite:
+        specifier: ^7.1.0
+        version: 7.3.5(@types/node@25.9.3)(tsx@4.22.4)
+
   packages/avatar:
     devDependencies:
       sharp:
@@ -133,6 +149,9 @@ importers:
       '@retro-recall/retrokit':
         specifier: workspace:*
         version: link:../../packages/retrokit
+      '@retro-recall/splash-squad':
+        specifier: workspace:*
+        version: link:../../games/splash-squad
     devDependencies:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.9.12

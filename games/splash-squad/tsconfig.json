@@ -3,14 +3,13 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "lib": ["ES2022"],
-    "types": ["@cloudflare/workers-types"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
   },
   "include": ["src"],
   "references": [
+    { "path": "../../packages/retrokit" },
     { "path": "../../packages/netcode" },
-    { "path": "../../games/splash-squad" },
-    { "path": "../../games/ramp-riders" },
-    { "path": "../../games/bubble-buddies" }
+    { "path": "../../packages/shell" }
   ]
 }
