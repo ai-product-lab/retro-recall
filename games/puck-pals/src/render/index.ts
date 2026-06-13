@@ -38,13 +38,23 @@ export function followPuck(cam: Camera, state: GameState): void {
   cam.follow(C.CENTER_X, puckCy, { w: C.RINK_PX_W, h: C.RINK_PX_H }, { deadzoneH: 48 });
 }
 
-export function render(r: Canvas2DRenderer, state: GameState, cam: Camera, localIds: number[] = []): void {
+export interface RenderOpts {
+  /** Skater ids to mark as "you" (hotseat / online local players). */
+  localIds?: number[];
+  /** Resolve a skater's avatar head bitmap, or undefined to draw a plain box. */
+  headFor?: (s: SkaterState) => ImageBitmap | undefined;
+}
+
+export function render(r: Canvas2DRenderer, state: GameState, cam: Camera, opts: RenderOpts = {}): void {
   const oy = -cam.y;
+  const localIds = opts.localIds ?? [];
   r.clear(MIDNIGHT);
   drawRink(r, state, oy);
   for (const g of state.goalies) drawGoalie(r, g, oy);
   drawPuck(r, state, oy);
-  for (const s of state.skaters) drawSkater(r, s, oy, localIds.includes(s.id));
+  for (const s of state.skaters) {
+    drawSkater(r, s, oy, localIds.includes(s.id), opts.headFor?.(s));
+  }
   drawHud(r, state);
   drawCenterMessage(r, state);
 }
@@ -95,16 +105,41 @@ function skaterScreen(s: SkaterState): { x: number; y: number } {
   return { x: px(s.x), y: px(s.y) };
 }
 
-function drawSkater(r: Canvas2DRenderer, s: SkaterState, oy: number, local: boolean): void {
+const HEAD_PX = 14; // on-screen bobblehead size (source head is 24×24)
+
+/** Blit an avatar head centered above the skater body, mirrored to face. */
+function drawHead(r: Canvas2DRenderer, head: ImageBitmap, cx: number, topY: number, faceX: number): void {
+  const ctx = r.ctx;
+  const dx = Math.round(cx - HEAD_PX / 2);
+  if (faceX < 0) {
+    ctx.save();
+    ctx.translate(dx + HEAD_PX, topY);
+    ctx.scale(-1, 1);
+    ctx.drawImage(head, 0, 0, head.width, head.height, 0, 0, HEAD_PX, HEAD_PX);
+    ctx.restore();
+  } else {
+    ctx.drawImage(head, 0, 0, head.width, head.height, dx, topY, HEAD_PX, HEAD_PX);
+  }
+}
+
+function drawSkater(
+  r: Canvas2DRenderer,
+  s: SkaterState,
+  oy: number,
+  local: boolean,
+  head: ImageBitmap | undefined,
+): void {
   const { x, y } = skaterScreen(s);
   const sy = y + oy;
   const col = TEAM[s.team]!;
   const size = C.SKATER_HITBOX;
+  const cx = x + size / 2;
 
   if (s.tumble > 0) {
-    // Knocked down: a dim, sprawled box with a spin tick.
-    r.rect(x, sy + size / 4, size, size / 2, col.trim);
-    r.rect(x + size / 2 - 1, sy, 2, 2, col.body);
+    // Knocked down: a sprawled team body with the head tipped over beside it.
+    r.rect(x, sy + size / 2, size, size / 2, col.trim);
+    if (head) drawHead(r, head, cx + 2, sy + 1, 1);
+    else r.rect(x + size / 2 - 1, sy, 2, 2, col.body);
     return;
   }
 
@@ -112,18 +147,29 @@ function drawSkater(r: Canvas2DRenderer, s: SkaterState, oy: number, local: bool
   if (s.charge > 0) {
     const t = s.charge / C.SLAP_CHARGE_MAX_TICKS;
     const ringColor = s.charge >= C.SUPER_SLAP_THRESHOLD ? STAR : PAPER;
-    r.circleOutline(x + size / 2, sy + size / 2, size / 2 + 2 + t * 5, ringColor, 1);
+    r.circleOutline(cx, sy + size / 2, size / 2 + 2 + t * 5, ringColor, 1);
   }
 
+  if (head) {
+    // Bobblehead skater: a team jersey + skates under the avatar head.
+    const by = sy + 4;
+    r.rect(x + 1, by, size - 2, size - 3, col.body); // jersey
+    r.rect(x + 1, by + size - 4, size - 2, 1, col.trim); // skate line
+    // Facing pip on the jersey, in the skating direction.
+    r.rect(cx - 1 + s.faceX * 3, by + 2 + (s.faceY > 0 ? 2 : 0), 2, 2, PAPER);
+    if (local) r.rect(cx - 1, sy - 5, 2, 2, STAR); // "you" cap dot
+    drawHead(r, head, cx, sy - 5, s.faceX);
+    return;
+  }
+
+  // Fallback box (head not loaded yet).
   r.rect(x, sy, size, size, col.body);
   r.rect(x + 1, sy + 1, size - 2, size - 2, col.trim);
   r.rect(x + 2, sy + 2, size - 4, size - 4, col.body);
-  // Facing notch — a pip in the direction the skater is pointing.
-  const nx = x + size / 2 - 1 + s.faceX * (size / 2 - 1);
+  const nx = cx - 1 + s.faceX * (size / 2 - 1);
   const ny = sy + size / 2 - 1 + s.faceY * (size / 2 - 1);
   r.rect(nx, ny, 2, 2, PAPER);
-  // "You" marker (hotseat / online): a small cap dot above the local skater.
-  if (local) r.rect(x + size / 2 - 1, sy - 3, 2, 2, STAR);
+  if (local) r.rect(cx - 1, sy - 3, 2, 2, STAR);
 }
 
 function drawGoalie(r: Canvas2DRenderer, g: { team: number; x: number; y: number }, oy: number): void {

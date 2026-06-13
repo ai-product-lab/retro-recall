@@ -15,6 +15,8 @@ import { render, followPuck, VIEW_W, VIEW_H } from './render/index';
 import { NetView } from './net/view';
 import { GAME_W, GAME_H, layoutCanvas, mountControls, type TouchPad } from './shell/layout';
 import { applyInputMode } from './shell/device';
+import { HeadStore, headResolver } from './avatar/heads';
+import { setupAvatarPicker } from './avatar/picker';
 import {
   createRoom,
   escapeToBrowser,
@@ -96,6 +98,20 @@ async function main(): Promise<void> {
     $('#room-roster').textContent = `already here: ${info.players.map((p) => p.name).join(', ')}`;
   }
 
+  // Avatar picker (gallery + photo) — there's always a valid pick, so JOIN is
+  // never blocked even with no worker/camera.
+  const heads = new HeadStore();
+  const picker = setupAvatarPicker(
+    {
+      options: $('#avatar-options'),
+      photoBtn: $<HTMLButtonElement>('#avatar-photo'),
+      fileInput: $<HTMLInputElement>('#avatar-file'),
+      status: $('#avatar-status'),
+    },
+    heads,
+    code,
+  );
+
   const nameInput = $<HTMLInputElement>('#name-input');
   nameInput.value = localStorage.getItem('pp-name') ?? '';
   await new Promise<void>((resolve) => {
@@ -109,7 +125,9 @@ async function main(): Promise<void> {
     });
   });
   const playerName = nameInput.value.trim().slice(0, 12);
+  const avatarId = picker.getAvatarId();
   localStorage.setItem('pp-name', playerName);
+  localStorage.setItem('pp-avatar', avatarId); // carries over to solo practice
   $('#name-overlay').classList.add('hidden');
 
   // --- Netcode client ---
@@ -124,6 +142,7 @@ async function main(): Promise<void> {
     connect: makeTransport,
     createSim: () => new PuckPalsSim(0),
     playerName,
+    avatarId,
     rejoinToken: sessionStorage.getItem(tokenKey) ?? undefined,
     onEvent: (ev) => {
       if (ev.kind === 'status') {
@@ -179,6 +198,17 @@ async function main(): Promise<void> {
   const cam = new Camera(VIEW_W, VIEW_H);
   const view = new NetView(client);
 
+  // slot → avatarId from the roster (peers carry avatarId); our own slot uses
+  // the local pick immediately so we never wait on a round-trip to see our face.
+  const humanAvatars = (): Map<number, string> => {
+    const m = new Map<number, string>();
+    client.peers.forEach((p, slot) => {
+      if (p?.avatarId) m.set(slot, p.avatarId);
+    });
+    if (client.slot >= 0) m.set(client.slot, avatarId);
+    return m;
+  };
+
   const renderRoster = (): void => {
     const el = $('#players');
     el.innerHTML = '';
@@ -214,7 +244,10 @@ async function main(): Promise<void> {
     if (state) {
       followPuck(cam, state);
       const me = state.skaters.find((s) => s.slot === client.slot);
-      render(renderer, state, cam, me ? [me.id] : []);
+      render(renderer, state, cam, {
+        localIds: me ? [me.id] : [],
+        headFor: headResolver(heads, state.skaters, humanAvatars()),
+      });
       pad?.setCarrying(!!me && state.puck.carrier === me.id);
       if (client.status === 'active') {
         if (client.spectator) statusLine('watching — skater seats are full');

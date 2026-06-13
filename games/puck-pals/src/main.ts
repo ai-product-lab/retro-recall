@@ -11,6 +11,8 @@ import { Button } from '@retro-recall/retrokit/sim';
 import { PuckPalsSim } from './sim/sim';
 import { render, followPuck, VIEW_W, VIEW_H } from './render/index';
 import { GAME_W, GAME_H, layoutCanvas, mountControls } from './shell/layout';
+import { HeadStore, headResolver } from './avatar/heads';
+import { galleryId } from '@retro-recall/avatar';
 
 const TICK_MS = 1000 / 60;
 
@@ -64,6 +66,12 @@ if (canvas) {
   sim.joinPlayer(0); // you are Home
   if (hotseat) sim.joinPlayer(1); // Away at the same keyboard
 
+  // Avatars: your last-picked head (carried over from online) for slot 0, a
+  // distinct creature for the hotseat player; CPUs get deterministic faces.
+  const heads = new HeadStore();
+  const humanAvatars = new Map<number, string>([[0, localStorage.getItem('pp-avatar') ?? galleryId(0)]]);
+  if (hotseat) humanAvatars.set(1, galleryId(4));
+
   const cam = new Camera(VIEW_W, VIEW_H);
   followPuck(cam, sim.state);
 
@@ -82,7 +90,10 @@ if (canvas) {
     }
     pad?.setCarrying(sim.state.puck.carrier === 0);
     followPuck(cam, sim.state);
-    render(r, sim.state, cam, localIds);
+    render(r, sim.state, cam, {
+      localIds,
+      headFor: headResolver(heads, sim.state.skaters, humanAvatars),
+    });
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
