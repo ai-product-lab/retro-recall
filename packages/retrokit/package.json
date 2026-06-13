@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./sim": "./src/sim/index.ts",
+    "./camera": "./src/camera/index.ts",
     "./render": "./src/render/index.ts",
     "./input": "./src/input/index.ts",
     "./loop": "./src/loop.ts"

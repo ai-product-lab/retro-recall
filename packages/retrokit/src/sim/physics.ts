@@ -105,6 +105,25 @@ export function moveAABB(
     }
   }
 
+  // --- Slopes ---
+  // Only entered when the map actually contains slope tiles, so slope-free
+  // maps (every pre-slope game) keep a byte-identical resolution path. Slope
+  // tiles are non-solid to the AABB passes above; here we lift the box onto the
+  // ramp surface sampled under its horizontal center. Flyers/bubbles
+  // (solidOnly) skip ramps, as they skip one-way platforms.
+  if (map.hasSlopes && vy >= 0 && !solidOnly) {
+    const centerPx = floorDiv(nx, SUBPX) + (w >> 1);
+    const surf = map.slopeSurfaceY(centerPx);
+    if (surf !== null) {
+      const bottomPx = floorDiv(ny, SUBPX) + h; // exclusive: first row below box
+      if (bottomPx >= surf) {
+        ny = (surf - h) * SUBPX;
+        grounded = true;
+        hitY = true;
+      }
+    }
+  }
+
   if (!grounded && vy >= 0) {
     grounded = isSupported(map, nx, ny, w, h, solidOnly);
   }
