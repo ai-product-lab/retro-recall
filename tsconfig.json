@@ -3,7 +3,9 @@
   "references": [
     { "path": "packages/retrokit" },
     { "path": "packages/netcode" },
+    { "path": "packages/avatar" },
     { "path": "games/bubble-buddies" },
-    { "path": "workers/rooms" }
+    { "path": "workers/rooms" },
+    { "path": "workers/avatar" }
   ]
 }

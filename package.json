@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "pnpm --filter @retro-recall/bubble-buddies dev",
     "typecheck": "tsc --build",
-    "test": "vitest run && pnpm --filter @retro-recall/rooms-worker test",
+    "test": "vitest run && pnpm --filter @retro-recall/rooms-worker test && pnpm --filter @retro-recall/avatar-worker test",
     "test:watch": "vitest",
     "lint": "eslint ."
   },

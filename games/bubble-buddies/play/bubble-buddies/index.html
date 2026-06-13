@@ -54,6 +54,15 @@
 
         <div class="joining">joining room <span class="room-code" id="overlay-code"></span></div>
         <div id="room-roster"></div>
+
+        <div class="avatar-pick">
+          <div class="avatar-pick-label">pick your buddy</div>
+          <div id="avatar-options" class="avatar-options"></div>
+          <button id="photo-btn" type="button" class="chip-btn ghost">📷 use my photo</button>
+          <input id="photo-input" type="file" accept="image/*" capture="user" hidden />
+          <div id="avatar-status" class="hint" aria-live="polite"></div>
+        </div>
+
         <input id="name-input" maxlength="12" placeholder="your name" autocomplete="off" />
         <button id="join-btn" class="chip-btn primary">JOIN GAME</button>
 

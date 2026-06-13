@@ -1,0 +1,5 @@
+# Generation harness output. Input photos must never be committed, and we keep
+# raw model output out of git too — only deliberately-chosen sample sprites get
+# checked in elsewhere.
+gen-out/
+dist/

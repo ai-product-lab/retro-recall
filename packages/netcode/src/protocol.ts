@@ -82,6 +82,8 @@ export interface PeerSlotMeta {
   slot: number;
   name: string;
   connected: boolean;
+  /** Avatar to render for this slot; absent → slot-colored placeholder. */
+  avatarId?: string;
 }
 
 export interface WelcomeMsg {
