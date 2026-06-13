@@ -117,3 +117,63 @@ Phase 2 demo target: met pending the DNS one-liner + the two-phone FaceTime
 playtest. Known follow-ups: real Phase 1.5 mobile pass (PWA manifest,
 orientation layouts), seat reuse after a rejoin window expires, binary
 snapshots only if measured necessary.
+
+## 2026-06-12 — Phase 2.5: mobile first, for real
+
+Field report from Kevin's iPhone — keyboard legends on a touch screen,
+stretched ratios — drove a full shell rebuild per ADR-007. Strictly
+shell-layer: all 64 tests including both golden replay fixtures passed
+unregenerated; the sim never knew.
+
+**Integer scaling means *device* pixels.** The naive read of "integer
+multiples of 256×192" — CSS pixels — gives 1× on a 393pt iPhone 15: a
+256pt-wide postage stamp using 65% of the screen. The layout engine scales
+in device pixels instead: at 3× DPR it picks 4 device px per logical px →
+a 341×256pt playfield that is still a pixel-perfect upscale (1024×768
+device px), just fractional in CSS units. Crisper *and* bigger. The origin
+snaps to the device-pixel grid so the upscale never resamples.
+
+**The pillarbox bars are the controller.** Landscape centers the playfield
+at max integer scale and puts the d-pad in the left bar, A/B in the right —
+the NES-held-sideways layout ADR-007 sketched. Portrait is the Game Boy:
+playfield top, controller band below. First screenshots showed the portrait
+controls floating mid-band on tall phones; the band now caps at 320px and
+anchors to the bottom, where thumbs actually rest. Live relayout on rotate,
+resize, and visualViewport changes; safe-area insets pad the whole stage.
+
+**Touch zones, not buttons.** The whole bar/band is the touch surface; the
+drawn d-pad and A/B are just visuals. The d-pad recomputes its 8-way octant
+every pointermove (slide between directions without lifting), buttons match
+by nearest-center-with-slop, and every pointer is tracked by pointerId —
+move + jump + blow simultaneously. One subtlety: a pointer that presses B
+*locks* to B, so holding for the emote wheel and sliding to pick can't
+wander onto A mid-gesture.
+
+**Join surfaces flipped (spec updated).** iOS PWAs can't capture links —
+a tapped invite always opens Safari, never the pinned app. So the home
+screen now leads with the big 4-letter code input (the regulars' path),
+links stay the first-timer path, and the "start a call" banner demoted to
+a one-line muted tip on the join overlay. ADR-008 and the netcode SPEC
+carry the reasoning.
+
+**PWA with zero image dependencies.** Manifest (standalone,
+any-orientation), icons generated from the brand pixel bubble by a ~100-line
+PNG encoder on node:zlib (`scripts/make-icons.mjs` — deterministic, no
+sharp), service worker (cached shell, network-first navigations, room API
+never cached — a stale roster is worse than an error), an iOS "pin me"
+share-sheet walkthrough, and a tap-to-start gate that doubles as the audio
+unlock for the audio engine we don't have yet.
+
+**Verification.** Playwright (webkit + chromium) drives iPhone SE/15/15
+Pro Max viewports in both orientations plus a desktop baseline — 14 tests
+asserting the integer-scale contract, control placement, ≥48px buttons,
+and that touch devices never see a `<kbd>`. Screenshots committed under
+`games/bubble-buddies/e2e/screenshots/` for review. Honest gaps: the e2e
+suite is not wired into CI (browser downloads); the Android
+beforeinstallprompt path is untested on real hardware; play-page
+screenshots show "reconnecting" because the harness stubs the REST API but
+runs no WebSocket server.
+
+Deployed to retro-recall.pages.dev. Phase gate remaining: Kevin's two-phone
+playtest (now doubling as the Phase 2 leftover), plus the Phase 2 DNS
+CNAME, both human-run.

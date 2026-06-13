@@ -30,6 +30,6 @@ A web arcade of original games inspired by NES classics, with online multiplayer
 
 ## Current phase
 
-**Phase 2.5 — Mobile first, for real.** Kickoff prompt: `docs/PHASE-2.5-KICKOFF.md`. Full ADR-007 pass (dual-orientation integer-scaled layouts, real touch controls, device-aware input hints, PWA manifest/service worker/install flow, audio unlock), replacing Phase 2's stopgap touch pad. Strictly shell-layer — the sim, levels, and golden replay fixtures must not change. Field report driving this: on iPhone, keyboard legends show and ratios are stretched.
+**Phase 2.5 — Mobile first, for real: built & deployed**, pending Kevin's on-phone playtest to close (`docs/devlog.md` 2026-06-12 Phase 2.5). The full ADR-007 pass landed: integer device-pixel scaled dual-orientation layouts, real touch controls, device-aware hints, PWA (manifest / service worker / pin-me / audio unlock), and the join-surfaces rework (code-entry-first home; netcode SPEC "Join surfaces"). Viewport gate: `pnpm --filter @retro-recall/bubble-buddies test:e2e` (Playwright; not wired into CI).
 
-Phase 2 (online co-op) is built & deployed — see `docs/devlog.md` 2026-06-12. Still outstanding from it: the production CNAME (human-run `workers/rooms/scripts/setup-dns.sh`) and the two-phone playtest. Phase 3 (avatars, `docs/PHASE-3-KICKOFF.md`) is blocked on this phase.
+Still outstanding from Phase 2: the production CNAME (human-run `workers/rooms/scripts/setup-dns.sh`) and the two-phone playtest. Phase 3 (avatars, `docs/PHASE-3-KICKOFF.md`) starts once this phase closes.
