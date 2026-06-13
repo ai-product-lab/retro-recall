@@ -22,6 +22,18 @@ export const ROOMS_ORIGIN: string =
 export const wsUrl = (code: string): string =>
   `${ROOMS_ORIGIN.replace(/^http/, 'ws')}/room/${code}`;
 
+/** Avatar Worker origin. Same-origin as the game on the canonical host (routing
+ *  sends /api/avatar there); elsewhere a build-time override, else the local
+ *  avatar worker on its own port. A missing/unreachable origin just degrades to
+ *  the gallery — generation is never required to play. */
+export const AVATARS_ORIGIN: string =
+  location.hostname === CANONICAL_HOST
+    ? location.origin
+    : ((import.meta.env['VITE_AVATARS_ORIGIN'] as string | undefined) ??
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        ? 'http://localhost:8788'
+        : location.origin));
+
 export interface RoomInfo {
   code: string;
   players: { slot: number; name: string; connected: boolean }[];

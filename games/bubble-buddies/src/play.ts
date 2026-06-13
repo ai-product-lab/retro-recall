@@ -27,6 +27,8 @@ import {
   startLayout,
   type TouchControls,
 } from '@retro-recall/shell';
+import { AvatarStore, type AvatarSprite } from './avatar/store';
+import { setupAvatarPicker } from './avatar/picker';
 import { unlockAudio } from './shell/audio';
 import { registerServiceWorker } from './shell/pwa';
 import {
@@ -103,6 +105,19 @@ async function main(): Promise<void> {
       `already here: ${info.players.map((p) => p.name).join(', ')}`;
   }
 
+  // Avatar picker: a buddy is always pre-selected, so JOIN is never blocked.
+  const avatars = new AvatarStore();
+  const picker = setupAvatarPicker(
+    {
+      options: $('#avatar-options'),
+      photoBtn: $<HTMLButtonElement>('#photo-btn'),
+      fileInput: $<HTMLInputElement>('#photo-input'),
+      status: $('#avatar-status'),
+    },
+    avatars,
+    code,
+  );
+
   const nameInput = $<HTMLInputElement>('#name-input');
   nameInput.value = localStorage.getItem('bb-name') ?? '';
   await new Promise<void>((resolve) => {
@@ -119,6 +134,7 @@ async function main(): Promise<void> {
   });
   const playerName = nameInput.value.trim().slice(0, 12);
   localStorage.setItem('bb-name', playerName);
+  const avatarId = picker.getAvatarId();
   $('#name-overlay').classList.add('hidden');
 
   // --- Netcode client ---
@@ -133,6 +149,7 @@ async function main(): Promise<void> {
     connect: makeTransport,
     createSim: () => new BubbleBuddiesSim(0, 0, 0),
     playerName,
+    avatarId,
     rejoinToken: sessionStorage.getItem(tokenKey) ?? undefined,
     onEvent: (ev) => {
       if (ev.kind === 'status') {
@@ -154,6 +171,7 @@ async function main(): Promise<void> {
           }
         }
       } else if (ev.kind === 'peers') {
+        for (const peer of ev.slots) avatars.ensure(peer?.avatarId);
         renderRoster();
       } else if (ev.kind === 'desync') {
         console.warn(`[netcode] desync at tick ${ev.tick} — filed in client.desyncs`);
@@ -233,9 +251,15 @@ async function main(): Promise<void> {
       if (!state) return;
       const emoteGlyphs = new Map<number, string>();
       for (const [slot, e] of client.emotes) emoteGlyphs.set(slot, EMOTE_GLYPHS[e.kind]);
+      const sprites = new Map<number, AvatarSprite>();
+      client.peers.forEach((peer, slot) => {
+        const s = avatars.get(peer?.avatarId);
+        if (s) sprites.set(slot, s);
+      });
       render(renderer, levelMap(state.level), state, {
         localSlot: client.slot,
         emotes: emoteGlyphs,
+        sprites,
       });
       if (client.status === 'active') {
         const me = client.slot >= 0 ? state.players[client.slot] : null;

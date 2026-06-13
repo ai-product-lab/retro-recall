@@ -1,0 +1,28 @@
+// Avatar worker (ADR-004). Generates a pixel head from a photo, stores it in R2.
+//
+// Human setup (Kevin, once — see docs/PHASE-3-KICKOFF.md):
+//   wrangler r2 bucket create retro-recall-avatars
+//   wrangler kv namespace create AVATAR_RATE   → paste id below
+//   wrangler secret put GEMINI_API_KEY --name retro-recall-avatar
+//
+// The /api/avatar route is more specific than the rooms worker's /api/*, so
+// Cloudflare's longest-match routing sends avatar traffic here. Both activate
+// only once the production hostname exists (setup-dns.sh, still outstanding);
+// until then use the workers.dev URL.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "retro-recall-avatar",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-01",
+  "r2_buckets": [{ "binding": "AVATARS", "bucket_name": "retro-recall-avatars" }],
+  "kv_namespaces": [{ "binding": "RATE", "id": "REPLACE_WITH_AVATAR_RATE_KV_ID" }],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://retro-recall.ruralrooted.com"
+  },
+  "routes": [
+    { "pattern": "retro-recall.ruralrooted.com/api/avatar", "zone_name": "ruralrooted.com" },
+    { "pattern": "retro-recall.ruralrooted.com/api/avatar/*", "zone_name": "ruralrooted.com" }
+  ],
+  "workers_dev": true,
+  "observability": { "enabled": true }
+}
