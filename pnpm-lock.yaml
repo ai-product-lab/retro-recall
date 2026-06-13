@@ -46,6 +46,19 @@ importers:
         specifier: ^7.1.0
         version: 7.3.5(@types/node@25.9.3)
 
+  games/ramp-riders:
+    dependencies:
+      '@retro-recall/netcode':
+        specifier: workspace:*
+        version: link:../../packages/netcode
+      '@retro-recall/retrokit':
+        specifier: workspace:*
+        version: link:../../packages/retrokit
+    devDependencies:
+      vite:
+        specifier: ^7.1.0
+        version: 7.3.5(@types/node@25.9.3)
+
   packages/netcode:
     dependencies:
       '@retro-recall/retrokit':
@@ -68,6 +81,9 @@ importers:
       '@retro-recall/netcode':
         specifier: workspace:*
         version: link:../../packages/netcode
+      '@retro-recall/ramp-riders':
+        specifier: workspace:*
+        version: link:../../games/ramp-riders
       '@retro-recall/retrokit':
         specifier: workspace:*
         version: link:../../packages/retrokit
