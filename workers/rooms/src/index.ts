@@ -14,12 +14,40 @@ import { GameRoomDO } from './room-do';
 
 export { GameRoomDO };
 
+/** Workers Rate Limiting binding (GA); see wrangler.jsonc `ratelimits`. */
+interface RateLimit {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface Env {
   GAME_ROOM: DurableObjectNamespace<GameRoomDO>;
   ROOMS: KVNamespace;
   PUBLIC_ORIGIN: string;
   DISABLE_AUTO_TICK?: string;
+  // Optional so local tests/dev (where the binding may be absent) skip limiting.
+  // CREATE_RATE guards room allocation; JOIN_RATE guards lookups + WS upgrades —
+  // the surfaces an external prober would hammer to burn the Free invocation cap.
+  CREATE_RATE?: RateLimit;
+  JOIN_RATE?: RateLimit;
 }
+
+/** Per-IP key for rate limiting; one shared bucket locally (no client IP). */
+const clientKey = (request: Request): string =>
+  request.headers.get('cf-connecting-ip') ?? 'local';
+
+/** True if allowed (or no limiter bound). False once the per-IP limit trips. */
+async function withinRate(limiter: RateLimit | undefined, key: string): Promise<boolean> {
+  if (!limiter) return true;
+  const { success } = await limiter.limit({ key });
+  return success;
+}
+
+const tooMany = (): Response => json({ error: 'rate limited' }, 429);
+
+// Refresh a room code's 24 h TTL at most ~4× across its lifetime rather than on
+// every lookup — one KV write per request would blow the Free plan's 1,000
+// writes/day cap under even modest traffic.
+const REFRESH_AFTER_S = ROOM_TTL_S / 4;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -53,7 +81,10 @@ async function createRoom(env: Env, request: Request): Promise<Response> {
   if (!code) return json({ error: 'could not allocate a room code' }, 503);
 
   const id = env.GAME_ROOM.newUniqueId();
-  await env.ROOMS.put(code, id.toString(), { expirationTtl: ROOM_TTL_S });
+  await env.ROOMS.put(code, id.toString(), {
+    expirationTtl: ROOM_TTL_S,
+    metadata: { t: Date.now() }, // seeds the TTL-refresh throttle in lookupRoom
+  });
   await env.GAME_ROOM.get(id).init(code, game);
   return json({
     code,
@@ -63,10 +94,15 @@ async function createRoom(env: Env, request: Request): Promise<Response> {
 
 async function lookupRoom(env: Env, code: string): Promise<DurableObjectStub<GameRoomDO> | null> {
   if (!isRoomCode(code)) return null;
-  const idStr = await env.ROOMS.get(code);
+  const { value: idStr, metadata } = await env.ROOMS.getWithMetadata<{ t: number }>(code);
   if (idStr === null) return null;
-  // Activity refresh: codes expire 24 h after last activity.
-  await env.ROOMS.put(code, idStr, { expirationTtl: ROOM_TTL_S });
+  // Activity refresh (codes expire 24 h after last activity), throttled: only
+  // re-write when the last refresh is older than REFRESH_AFTER_S, so a burst of
+  // lookups for one room costs at most one KV write per window, not one each.
+  const lastRefreshMs = metadata?.t ?? 0;
+  if ((Date.now() - lastRefreshMs) / 1000 > REFRESH_AFTER_S) {
+    await env.ROOMS.put(code, idStr, { expirationTtl: ROOM_TTL_S, metadata: { t: Date.now() } });
+  }
   return env.GAME_ROOM.get(env.GAME_ROOM.idFromString(idStr));
 }
 
@@ -75,12 +111,16 @@ export default {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
+    const key = clientKey(request);
+
     if (url.pathname === '/api/rooms' && request.method === 'POST') {
+      if (!(await withinRate(env.CREATE_RATE, key))) return tooMany();
       return createRoom(env, request);
     }
 
     const info = /^\/api\/rooms\/([A-Z]{4})$/.exec(url.pathname);
     if (info && request.method === 'GET') {
+      if (!(await withinRate(env.JOIN_RATE, key))) return tooMany();
       const stub = await lookupRoom(env, info[1]!);
       if (!stub) return json({ error: 'no such room' }, 404);
       return json(await stub.roomInfo());
@@ -88,6 +128,7 @@ export default {
 
     const room = /^\/room\/([A-Z]{4})$/.exec(url.pathname);
     if (room) {
+      if (!(await withinRate(env.JOIN_RATE, key))) return tooMany();
       const stub = await lookupRoom(env, room[1]!);
       if (!stub) return json({ error: 'no such room' }, 404);
       return stub.fetch(request);

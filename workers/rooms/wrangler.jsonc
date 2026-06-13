@@ -14,6 +14,14 @@
   "kv_namespaces": [
     { "binding": "ROOMS", "id": "262c74e1e7d6496d829d9bc72e76afa6" }
   ],
+  // Per-IP rate limits (GA binding) bound the Free invocation budget against
+  // bursty abuse/probing: ~20 room creates/min and ~60 lookups+joins/min per IP
+  // — generous for real play (a user makes 1–2), a hard ceiling for a bot.
+  // namespace_id is an arbitrary per-Worker counter id, not an account resource.
+  "ratelimits": [
+    { "name": "CREATE_RATE", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
+    { "name": "JOIN_RATE", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } }
+  ],
   "vars": {
     "PUBLIC_ORIGIN": "https://retro-recall.ruralrooted.com"
   },
@@ -22,6 +30,9 @@
     { "pattern": "retro-recall.ruralrooted.com/api/*", "zone_name": "ruralrooted.com" },
     { "pattern": "retro-recall.ruralrooted.com/room/*", "zone_name": "ruralrooted.com" }
   ],
-  "workers_dev": true,
+  // No *.workers.dev URL: the custom-domain routes are the only public surface,
+  // so an unauthenticated prober can't burn the Free invocation cap via the
+  // workers.dev hostname (a vector behind the 2026-06-13 quota exhaustion).
+  "workers_dev": false,
   "observability": { "enabled": true }
 }

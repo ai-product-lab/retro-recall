@@ -70,6 +70,18 @@ describe('room creation', () => {
     expect((await SELF.fetch('https://rooms.test/room/QQQQ')).status).toBe(404);
     expect((await SELF.fetch('https://rooms.test/api/rooms/ABCDE')).status).toBe(404);
   });
+
+  it('throttles the TTL-refresh KV write across rapid lookups (Free 1k writes/day cap)', async () => {
+    const { code } = await createRoom();
+    const seeded = await env.ROOMS.getWithMetadata<{ t: number }>(code);
+    expect(seeded.metadata?.t).toBeTypeOf('number'); // create seeds the refresh stamp
+    // A burst of lookups well inside the refresh window must not re-write the key.
+    for (let i = 0; i < 5; i++) {
+      expect((await SELF.fetch(`https://rooms.test/api/rooms/${code}`)).status).toBe(200);
+    }
+    const after = await env.ROOMS.getWithMetadata<{ t: number }>(code);
+    expect(after.metadata?.t).toBe(seeded.metadata?.t); // no extra writes
+  });
 });
 
 describe('join / play / snapshot flow', () => {
