@@ -11,7 +11,7 @@ const SIM_FILES = ['packages/*/src/sim/**/*.ts', 'games/*/src/sim/**/*.ts'];
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/dist-web/**', '**/node_modules/**', '**/coverage/**', '**/.wrangler/**'],
+    ignores: ['**/dist/**', '**/dist-web/**', '**/dist-deploy/**', '**/node_modules/**', '**/coverage/**', '**/.wrangler/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

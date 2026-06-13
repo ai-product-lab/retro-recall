@@ -12,7 +12,10 @@
     "typecheck": "tsc --build",
     "test": "vitest run && pnpm --filter @retro-recall/rooms-worker test && pnpm --filter @retro-recall/avatar-worker test",
     "test:watch": "vitest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build:site": "node tools/build-site.mjs",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build:site",
+    "loadtest": "node tools/loadtest/index.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
