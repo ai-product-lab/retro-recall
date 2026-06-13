@@ -149,6 +149,28 @@ describe('RoomCore joins', () => {
     h.room.handleMessage('x', inputMsg(0, 1));
     expect(h.last('x', 'error')).toMatchObject({ code: 'not_joined' });
   });
+
+  it('carries the chosen avatarId into peerMeta and persistence', () => {
+    const h = harness();
+    h.room.handleMessage('a', JSON.stringify({ type: 'join', playerName: 'a', avatarId: 'abc123' }));
+    expect(h.last('a', 'peerMeta')!['slots']).toMatchObject([{ slot: 0, avatarId: 'abc123' }, null, null, null]);
+    // Survives DO hibernation: a restored room still knows the avatar.
+    const revived = new RoomCore(
+      { createSim: () => new TestSim(), seed: 1, send: () => {}, now: () => 0, random: () => 0 },
+      h.room.persist(),
+    );
+    expect(revived.roomInfo().players[0]).toMatchObject({ slot: 0, avatarId: 'abc123' });
+  });
+
+  it('a re-join can set or update the avatar without a token', () => {
+    const h = harness();
+    h.join('a'); // no avatar yet
+    const slots0 = h.last('a', 'peerMeta')!['slots'] as Record<string, unknown>[];
+    expect(slots0[0]!['avatarId']).toBeUndefined();
+    const token = h.last('a', 'welcome')!['rejoinToken'] as string;
+    h.room.handleMessage('a2', JSON.stringify({ type: 'join', playerName: 'a', avatarId: 'gallery:3', rejoinToken: token }));
+    expect(h.last('a2', 'peerMeta')!['slots']).toMatchObject([{ slot: 0, avatarId: 'gallery:3' }, null, null, null]);
+  });
 });
 
 describe('RoomCore inputs', () => {

@@ -3,26 +3,36 @@ import type { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import * as C from '../sim/constants';
 import type { EnemyKind, GameState, PlayerState } from '../sim/sim';
 import type { TileMap } from '@retro-recall/retrokit/sim';
+import type { PoseName } from '@retro-recall/avatar';
+import type { AvatarSprite } from '../avatar/store';
 
 const px = (subpx: number): number => Math.floor(subpx / SUBPX);
 
+// House palette (BRAND.md / PALETTE_P1) — the same 16 colors avatars quantize
+// to, so generated buddies sit naturally in the world. ADR-005: original look,
+// no traceable trade dress.
 const COLORS = {
-  bg: '#0d0d2b',
-  solid: '#3b4ec9',
-  solidShade: '#27348f',
-  platform: '#8be0ff',
-  platformShade: '#4aa8d8',
-  grumble: '#fb923c',
-  grumbleShade: '#d96a16',
-  flitter: '#a78bfa',
-  flitterShade: '#7c52e8',
-  angry: '#ef4444',
-  bubbleFill: 'rgba(150, 220, 255, 0.30)',
-  bubbleRim: '#aee6ff',
-  banana: '#fde047',
-  berry: '#f87171',
-  hud: '#ffffff',
-  hudDim: '#9ca3af',
+  bg: '#0f1222', //          Midnight
+  solid: '#1e2440', //       deep navy block
+  solidEdge: '#4cc9f0', //   Bubble cyan top bevel
+  solidShade: '#0b0e1c', //  block shadow
+  platform: '#3df5a6', //    Phosphor mint
+  platformShade: '#2ba877', // mint shadow
+  grumble: '#ffd166', //     Star yellow walker
+  grumbleShade: '#e0a93b',
+  flitter: '#4cc9f0', //     Bubble cyan flyer
+  flitterShade: '#2a8fb8',
+  angry: '#ff6b6b', //       Cabinet coral
+  angryShade: '#c24a4a',
+  eye: '#0f1222',
+  bubbleFill: 'rgba(76, 201, 240, 0.22)',
+  bubbleRim: '#bdeeff',
+  banana: '#ffd166', //      Star
+  bananaShade: '#e0a93b',
+  berry: '#ff6b6b', //       Cabinet
+  leaf: '#3df5a6', //        Phosphor
+  hud: '#f2efe9', //         Paper
+  hudDim: '#8a7e6b', //      warm gray
 } as const;
 
 /** Per-slot palette tints (spec §11). Slot 0 is the classic green buddy. */
@@ -39,20 +49,71 @@ export interface RenderOverlay {
   localSlot?: number;
   /** Active emotes: slot → glyph (already filtered to the display window). */
   emotes?: ReadonlyMap<number, string>;
+  /** Loaded avatar sheets by slot; a missing slot draws the placeholder. */
+  sprites?: ReadonlyMap<number, AvatarSprite>;
+}
+
+/** Per-slot last drawn x, so we can tell walk from idle (sim has no vx). */
+const lastDrawX = new Map<number, number>();
+
+/** Pick an animation pose from the player's state. */
+function poseFor(p: PlayerState, slot: number): PoseName {
+  if (!p.grounded) return 'jump';
+  if (p.blowCooldown > C.BLOW_COOLDOWN_TICKS - 8) return 'blow';
+  const moved = lastDrawX.has(slot) && lastDrawX.get(slot) !== px(p.x);
+  return moved ? 'walk' : 'idle';
+}
+
+/** Resolve a pose to a concrete sheet frame index for this tick. */
+function frameIndex(sprite: AvatarSprite, pose: PoseName, tick: number, vy: number): number {
+  const ps = sprite.poses[pose];
+  if (pose === 'jump') return ps.start + (vy < 0 ? 0 : 1); // ascend / descend
+  return ps.start + (Math.floor((tick * ps.fps) / 60) % ps.count);
+}
+
+/** Blit one 16×16 frame, mirrored for left-facing. */
+function drawAvatar(
+  r: Canvas2DRenderer,
+  sprite: AvatarSprite,
+  frame: number,
+  dx: number,
+  dy: number,
+  facing: 1 | -1,
+): void {
+  const fs = sprite.frameSize;
+  const sx = frame * fs;
+  const ctx = r.ctx;
+  if (facing === -1) {
+    ctx.save();
+    ctx.translate(dx + fs, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(sprite.bitmap, sx, 0, fs, fs, 0, 0, fs, fs);
+    ctx.restore();
+  } else {
+    ctx.drawImage(sprite.bitmap, sx, 0, fs, fs, dx, dy, fs, fs);
+  }
 }
 
 function drawTiles(r: Canvas2DRenderer, map: TileMap): void {
   const ts = map.tileSize;
+  const solidAbove = (tx: number, ty: number): boolean => map.at(tx, ty - 1) === Tile.Solid;
   for (let ty = 0; ty < map.height; ty++) {
     for (let tx = 0; tx < map.width; tx++) {
       const t = map.at(tx, ty);
+      const x = tx * ts;
+      const y = ty * ts;
       if (t === Tile.Solid) {
-        r.rect(tx * ts, ty * ts, ts, ts, COLORS.solid);
-        r.rect(tx * ts, ty * ts + ts - 2, ts, 2, COLORS.solidShade);
-        r.rect(tx * ts + ts - 1, ty * ts, 1, ts, COLORS.solidShade);
+        r.rect(x, y, ts, ts, COLORS.solid);
+        // Cyan bevel only on the exposed top face (a lit ledge); inner shadow.
+        if (!solidAbove(tx, ty)) r.rect(x, y, ts, 1, COLORS.solidEdge);
+        r.rect(x, y + ts - 1, ts, 1, COLORS.solidShade);
+        r.rect(x + ts - 1, y + 1, 1, ts - 1, COLORS.solidShade);
       } else if (t === Tile.Platform) {
-        r.rect(tx * ts, ty * ts, ts, 3, COLORS.platform);
-        r.rect(tx * ts, ty * ts + 3, ts, 1, COLORS.platformShade);
+        r.rect(x, y, ts, 2, COLORS.platform);
+        r.rect(x, y + 2, ts, 1, COLORS.platformShade);
+        // Little drip studs so one-way platforms read as distinct from solids.
+        r.rect(x + 1, y + 3, 1, 1, COLORS.platformShade);
+        r.rect(x + ts - 2, y + 3, 1, 1, COLORS.platformShade);
       }
     }
   }
@@ -88,10 +149,53 @@ function drawCritter(
 }
 
 function enemyColors(kind: EnemyKind, angry: boolean): { body: string; shade: string } {
-  if (angry) return { body: COLORS.angry, shade: '#b91c1c' };
+  if (angry) return { body: COLORS.angry, shade: COLORS.angryShade };
   return kind === 'grumble'
     ? { body: COLORS.grumble, shade: COLORS.grumbleShade }
     : { body: COLORS.flitter, shade: COLORS.flitterShade };
+}
+
+/** A grumpy little monster: rounded body, angry brows + frown so it reads as a
+ *  foe (cute, but clearly not a buddy). Flitters get flapping wings. */
+function drawEnemy(
+  r: Canvas2DRenderer,
+  kind: EnemyKind,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  facing: 1 | -1,
+  body: string,
+  shade: string,
+  tick: number,
+): void {
+  if (kind === 'flitter') {
+    const flap = Math.floor(tick / 8) % 2 === 0 ? 0 : 2;
+    r.rect(x - 2, y + 3 + flap, 2, 4, shade);
+    r.rect(x + w, y + 3 + flap, 2, 4, shade);
+  }
+  // Body.
+  r.rect(x, y + 1, w, h - 1, body);
+  r.rect(x + 1, y, w - 2, 1, body); // rounded crown
+  r.rect(x, y + h - 3, w, 3, shade); // belly shade
+  // Feet/claws.
+  r.rect(x, y + h - 2, 3, 2, shade);
+  r.rect(x + w - 3, y + h - 2, 3, 2, shade);
+  // Eyes (look in facing direction).
+  const dx = facing === 1 ? 1 : 0;
+  const exL = x + 2 + dx;
+  const exR = x + w - 5 + dx;
+  r.rect(exL, y + 4, 3, 3, COLORS.hud);
+  r.rect(exR, y + 4, 3, 3, COLORS.hud);
+  r.rect(exL + dx, y + 5, 2, 2, COLORS.eye);
+  r.rect(exR + dx, y + 5, 2, 2, COLORS.eye);
+  // Angry slanted brows — the "foe" tell.
+  r.rect(exL - 1, y + 2, 3, 1, COLORS.eye);
+  r.rect(exL, y + 3, 2, 1, COLORS.eye);
+  r.rect(exR, y + 2, 3, 1, COLORS.eye);
+  r.rect(exR, y + 3, 2, 1, COLORS.eye);
+  // Frown.
+  r.rect(x + 4, y + h - 4, w - 8, 1, COLORS.eye);
 }
 
 const isMultiplayer = (st: GameState): boolean =>
@@ -132,18 +236,32 @@ function drawPlayer(
   overlay: RenderOverlay,
 ): void {
   const { body, shade } = SLOT_COLORS[slot]!;
+  const sprite = overlay.sprites?.get(slot);
   if (p.phase === 'bubble') {
     // Rescue bubble: the buddy squished inside a bubble, drifting up.
     const cx = px(p.x) + C.BUBBLE_HITBOX / 2;
     const cy = px(p.y) + C.BUBBLE_HITBOX / 2;
-    drawCritter(r, cx - 4, cy - 4, 8, 8, -1, body, shade);
+    if (sprite) {
+      drawAvatar(r, sprite, frameIndex(sprite, 'rescue', st.tick, p.vy), cx - sprite.frameSize / 2, cy - sprite.frameSize / 2, p.facing);
+    } else {
+      drawCritter(r, cx - 4, cy - 4, 8, 8, -1, body, shade);
+    }
     r.circle(cx, cy, C.BUBBLE_HITBOX / 2, COLORS.bubbleFill);
     r.circleOutline(cx, cy, C.BUBBLE_HITBOX / 2, body);
     return;
   }
   if (p.phase !== 'alive') return;
   const blink = p.invuln > 0 && Math.floor(st.tick / 4) % 2 === 0;
-  drawCritter(r, px(p.x), px(p.y), C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H, p.facing, body, shade, blink);
+  if (sprite) {
+    // 16×16 sprite centered on the 12×14 hitbox, feet aligned to its base.
+    if (!blink) {
+      const pose = poseFor(p, slot);
+      drawAvatar(r, sprite, frameIndex(sprite, pose, st.tick, p.vy), px(p.x) - 2, px(p.y) - 2, p.facing);
+    }
+    lastDrawX.set(slot, px(p.x));
+  } else {
+    drawCritter(r, px(p.x), px(p.y), C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H, p.facing, body, shade, blink);
+  }
   if (overlay.localSlot === slot && isMultiplayer(st)) {
     // Tiny "you" marker above your own buddy.
     r.rect(px(p.x) + C.PLAYER_HITBOX_W / 2 - 1, px(p.y) - 4, 2, 2, body);
@@ -169,24 +287,25 @@ export function render(
   drawTiles(r, map);
 
   for (const f of st.fruit) {
+    const fx = px(f.x);
+    const fy = px(f.y);
     if (f.kind === 'grumble') {
-      r.rect(px(f.x), px(f.y) + 2, C.FRUIT_HITBOX, C.FRUIT_HITBOX - 3, COLORS.banana);
-      r.rect(px(f.x) + 3, px(f.y), 2, 3, '#a16207');
+      // Sunny round candy with a highlight and a little stem.
+      r.rect(fx, fy + 2, C.FRUIT_HITBOX, C.FRUIT_HITBOX - 3, COLORS.banana);
+      r.rect(fx, fy + C.FRUIT_HITBOX - 2, C.FRUIT_HITBOX, 1, COLORS.bananaShade);
+      r.rect(fx + 1, fy + 3, 2, 1, COLORS.hud); // shine
+      r.rect(fx + 3, fy, 2, 3, COLORS.bananaShade); // stem
     } else {
-      r.circle(px(f.x) + C.FRUIT_HITBOX / 2, px(f.y) + C.FRUIT_HITBOX / 2, C.FRUIT_HITBOX / 2, COLORS.berry);
-      r.rect(px(f.x) + 3, px(f.y) - 1, 2, 3, '#15803d');
+      // Coral berry with a phosphor leaf.
+      r.circle(fx + C.FRUIT_HITBOX / 2, fy + C.FRUIT_HITBOX / 2, C.FRUIT_HITBOX / 2, COLORS.berry);
+      r.rect(fx + 2, fy + 3, 1, 1, COLORS.hud); // shine
+      r.rect(fx + 3, fy - 1, 2, 2, COLORS.leaf); // leaf
     }
   }
 
   for (const e of st.enemies) {
     const { body, shade } = enemyColors(e.kind, e.angry);
-    drawCritter(r, px(e.x), px(e.y), C.ENEMY_HITBOX_W, C.ENEMY_HITBOX_H, e.facing, body, shade);
-    if (e.kind === 'flitter') {
-      // Flapping wing nubs.
-      const flap = Math.floor(st.tick / 8) % 2 === 0 ? 0 : 2;
-      r.rect(px(e.x) - 2, px(e.y) + 3 + flap, 2, 4, shade);
-      r.rect(px(e.x) + C.ENEMY_HITBOX_W, px(e.y) + 3 + flap, 2, 4, shade);
-    }
+    drawEnemy(r, e.kind, px(e.x), px(e.y), C.ENEMY_HITBOX_W, C.ENEMY_HITBOX_H, e.facing, body, shade, st.tick);
   }
 
   if (st.mode !== 'death') {
@@ -207,7 +326,7 @@ export function render(
     }
     r.circle(cx, cy, radius, COLORS.bubbleFill);
     r.circleOutline(cx, cy, radius, COLORS.bubbleRim);
-    r.rect(cx - 3, cy - 4, 2, 2, '#ffffff'); // shine
+    r.rect(cx - 3, cy - 4, 2, 2, COLORS.hud); // shine
   }
 
   drawHud(r, st);

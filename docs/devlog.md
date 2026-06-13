@@ -248,6 +248,71 @@ server). Next: this branch merges to main first, then the three game worktrees
 (`game/puck-pals`, `game/splash-squad`, `game/ramp-riders`) start — each writes
 its SPEC for Kevin's approval before building.
 
+## 2026-06-12 — Phase 3: Get Sprited (avatars + real art)
+
+The signature feature lands: upload a photo, become a pixel buddy, play as
+yourself. ADR-004's split held up — **AI makes the identity, templates make
+the animation** — and it's why this worked on the first real try where a
+full-sprite-sheet ask would have flailed.
+
+**One good head beats a whole sheet.** The Avatar Worker asks Gemini
+(`gemini-2.5-flash-image`) for a single 24×24-ish head against a locked,
+versioned style prompt, runs input + output moderation (vision pass, fails
+closed), palette-quantizes to PALETTE_P1, stores it in R2 by content hash,
+and **drops the photo**. The client then composites that head onto
+hand-authored body rigs into a 12-frame sheet (idle/walk/jump/blow/rescue) —
+the same `composeSheet` for generated *and* fallback buddies, so everyone
+animates identically. A local harness (`gen` + `compose`, writing to
+`gen-out/`) ran the real pipeline so we could eyeball heads and motion before
+wiring any of it into the game.
+
+**The lie the model tells: "transparent background."** It doesn't — it hands
+back an opaque fill every time, so the first composited buddies were faces
+trapped in a solid square (invisible until composited; the head previews had
+blended into the page background and fooled the first eyeball). Fix is two
+parts: a border flood-fill **matte** that keys out the connected background
+(stops at the head's dark outline, spares background-colored pixels *inside*
+the face), and style prompt **v2** — ask for a flat magenta chroma key and
+drop the "CRT glow" clause that was painting colored halos. Versioned, so it
+re-styles only new players.
+
+**Eight original creatures for free.** The fallback gallery (declined AI /
+failure / rate-limit) is generated from one parameterized `creature()` —
+silhouette → auto 1px outline → eyes → smile → a top feature (ears, antenna,
+horn…). No hand-pixeling, distinct by color + feature, and they flow through
+the exact same compositor. Picking one is instant; play never blocks.
+
+**"avatarId already flows through join" — it didn't.** It was in the message
+*type* and nothing else: not sent by the client, not stored on the server,
+not in the roster, not seen by the renderer. Threaded it end to end
+(SlotMeta + DO persistence, set on join *and* rejoin, surfaced in
+PeerSlotMeta) and the renderer now blits the per-slot sheet via
+`ctx.drawImage` — no RetroKit change needed, `ctx` is already public. Pose
+comes from `phase/grounded/vy/blowCooldown`, and since the sim has no `vx`,
+walk-vs-idle is an x-delta the renderer tracks itself. Misses fall back to
+the placeholder critter, so a slow R2 fetch never drops a frame.
+
+**Real art, by palette cohesion.** The world was drawn in ad-hoc colors that
+weren't PALETTE_P1, so avatars wouldn't match it. Recolored everything to the
+house palette and gave it shape: navy blocks with a cyan bevel only on
+exposed ledges, mint one-way platforms with drip-studs, and enemies that are
+now *grumpy* — angry slanted brows + a frown read them as foes, not buddies.
+Original shapes throughout; nothing traceable (ADR-005).
+
+**Verification.** 112 unit/integration tests green (sim + replay fixtures
+untouched — the avatar work never goes near the deterministic core). The
+Playwright gate (chromium + webkit) actually *exercises* the new client: the
+join screenshots show the picker rendering 8 composited buddies through the
+real `createImageBitmap`→canvas path on every viewport. Honest gaps: the
+full key-bound, Gemini-mocked moderation **rejection** e2e is deferred to
+keep the worker tests hermetic — the gate's fail-closed decision is unit-
+tested (`parseModerationVerdict`) and the reason→422→fallback mapping is a
+one-liner — and the two-phone, real-photo phone demo is Kevin's to run.
+
+Phase gate remaining (human-run): Kevin's Gemini key + worker setup (R2
+bucket, KV namespace, `wrangler secret put GEMINI_API_KEY`), deploy, the
+Phase 2 DNS CNAME, and the photo-on-a-phone demo.
+
 ## 2026-06-12 — Wave B: Ramp Riders playable (game #4, the factory's first parallel build)
 
 First game built in a Stage-2 worktree (`game/ramp-riders`), additive-only — no

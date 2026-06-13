@@ -259,6 +259,32 @@ kbd {
 .joining { font-size: 13px; }
 #room-roster { font-size: 12px; min-height: 14px; }
 
+/* --- Avatar picker (join overlay) --- */
+.avatar-pick { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.avatar-pick-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); }
+.avatar-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+.avatar-opt {
+  padding: 2px;
+  background: var(--midnight-raised);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 0;
+  transition: transform 0.06s;
+}
+.avatar-opt canvas { width: 48px; height: 48px; image-rendering: pixelated; border-radius: 5px; }
+.avatar-opt:active { transform: scale(0.94); }
+.avatar-opt.selected { border-color: var(--phosphor); box-shadow: 0 0 0 2px rgba(61, 245, 166, 0.35); }
+.avatar-opt.broken { opacity: 0.35; }
+.chip-btn.ghost { background: transparent; font-size: 12px; padding: 6px 12px; min-height: 0; }
+#avatar-status { font-size: 11px; min-height: 14px; color: var(--star); }
+
 #name-input {
   background: var(--midnight-raised);
   color: var(--paper);
