@@ -1,9 +1,10 @@
 /**
  * Online play entry (/play/bubble-buddies?room=CODE): join the room over
  * WebSocket, run prediction + interpolation via RoomClient/NetView, and
- * wire the invite flow, touch pad, and emote wheel. `?lag=150` adds the
- * artificial-latency harness for feel-tuning.
+ * wire the invite flow, touch controls, and emote wheel. `?lag=150` adds
+ * the artificial-latency harness for feel-tuning.
  */
+import './shell/shell.css';
 import { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import { KeyboardInput } from '@retro-recall/retrokit/input';
 import { startLoop } from '@retro-recall/retrokit/loop';
@@ -20,7 +21,11 @@ import { BubbleBuddiesSim } from './sim/sim';
 import { render, SLOT_COLORS } from './render/index';
 import { NetView, levelMap } from './net/view';
 import { EmoteWheel, EMOTE_GLYPHS } from './shell/emote-wheel';
-import { createTouchPad, hasTouch } from './shell/touch';
+import { createTouchControls, type TouchControls } from './shell/controls';
+import { applyInputMode } from './shell/device';
+import { startLayout } from './shell/layout';
+import { unlockAudio } from './shell/audio';
+import { registerServiceWorker } from './shell/pwa';
 import {
   createRoom,
   escapeToBrowser,
@@ -58,6 +63,9 @@ function statusLine(text: string, bad = false): void {
 }
 
 async function main(): Promise<void> {
+  const inputMode = applyInputMode();
+  registerServiceWorker();
+
   // In-app browser escape (ADR-008): show before anything else.
   if (isInAppBrowser()) {
     $('#inapp-banner').classList.remove('hidden');
@@ -97,6 +105,8 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve) => {
     const go = (): void => {
       if (nameInput.value.trim().length === 0) nameInput.value = 'Buddy';
+      // The join tap is our user gesture — it doubles as the iOS audio unlock.
+      unlockAudio();
       resolve();
     };
     $('#join-btn').addEventListener('click', go);
@@ -149,23 +159,32 @@ async function main(): Promise<void> {
   });
   client.start();
 
-  // --- Shell: canvas, inputs, touch, emote wheel ---
+  // --- Shell: canvas, layout, inputs, touch, emote wheel ---
   const canvas = $<HTMLCanvasElement>('#game');
-  const scale = Math.max(
-    1,
-    Math.min(3, Math.floor((window.innerWidth - 24) / (LEVEL_WIDTH * TILE_SIZE))),
-  );
-  const renderer = new Canvas2DRenderer(canvas, LEVEL_WIDTH * TILE_SIZE, LEVEL_HEIGHT * TILE_SIZE, scale);
+  // displayScale 1: the layout engine owns the CSS size (integer device-pixel
+  // multiples of 256×192, per ADR-007).
+  const renderer = new Canvas2DRenderer(canvas, LEVEL_WIDTH * TILE_SIZE, LEVEL_HEIGHT * TILE_SIZE, 1);
   const keyboard = new KeyboardInput(window);
   const wheel = new EmoteWheel(document.body, (kind: EmoteKind) => client.sendEmote(kind));
-  let touchBits = (): number => 0;
-  if (hasTouch()) {
-    const pad = createTouchPad(document.body);
-    touchBits = pad.sample;
-    pad.bButton.addEventListener('pointerdown', () => wheel.holdStart());
-    // Release is handled by the wheel's global pointerup listener.
-    pad.bButton.addEventListener('pointerup', () => wheel.release());
+  let touch: TouchControls | null = null;
+  if (inputMode === 'touch') {
+    touch = createTouchControls($('#dpad'), $('#abzone'), {
+      // Release is also handled by the wheel's global pointerup listener;
+      // wheel.release() is idempotent so the double call is harmless.
+      onB: (down) => (down ? wheel.holdStart() : wheel.release()),
+    });
   }
+  startLayout(
+    {
+      arena: $('#arena'),
+      playfield: canvas,
+      hud: $('#hud'),
+      dpad: $('#dpad'),
+      buttons: $('#abzone'),
+      keysHint: document.querySelector<HTMLElement>('.keys'),
+    },
+    { touch: inputMode === 'touch' },
+  );
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyX') wheel.holdStart();
     if (wheel.isOpen) {
@@ -201,7 +220,7 @@ async function main(): Promise<void> {
 
   startLoop({
     tick: () => {
-      let bits = keyboard.sample() | touchBits();
+      let bits = keyboard.sample() | (touch?.sample() ?? 0);
       // While the wheel is open, the pad navigates the wheel, not the buddy.
       if (wheel.isOpen) bits &= Button.B;
       client.localTick(bits);

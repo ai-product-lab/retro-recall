@@ -25,8 +25,12 @@ Read CLAUDE.md and ADR-007, then rebuild the game shell mobile-first:
    inside the game (touch-action, gesture suppression).
 
 3. **Device-aware UI:** input hints/legends switch by capability — touch
-   devices never see keyboard keys; desktop keeps them. Same for the invite
-   page copy.
+   devices never see keyboard keys; desktop keeps them.
+
+3b. **Join surfaces rework** (netcode SPEC "Join surfaces" updated): app home
+   screen leads with a big 4-letter room-code input (the pinned-app path —
+   iOS PWAs can't capture links); invite links remain the first-timer path;
+   demote the "start a call" banner to a single muted tip line.
 
 4. **PWA:** manifest (name "Bubble Buddies", icons from branding palette,
    `display: standalone`, any-orientation), service worker (cache shell +

@@ -10,7 +10,7 @@ Playing with family means talking while playing. Question: build comms, or lean 
 
 Three tiers, adopted in order:
 
-**Tier 0 — borrow (now, zero build):** players call each other on whatever they already use — FaceTime, Facebook Messenger, WhatsApp, Discord, a phone call — and play. iOS keeps call audio running while Safari/the pinned PWA is foregrounded, so this is app-agnostic. The room-link invite page says exactly this: "Start a call, then everyone taps this link." **In-app browser caveat:** links tapped inside Messenger/WhatsApp/Instagram chats open in their embedded WebView, which is unreliable for games and can't Add to Home Screen — the invite page must detect in-app browsers and show a one-tap "Open in Safari" nudge (Phase 2 scope).
+**Tier 0 — borrow (now, zero build):** players call each other on whatever they already use — FaceTime, Facebook Messenger, WhatsApp, Discord, a phone call — and play. iOS keeps call audio running while Safari/the pinned PWA is foregrounded, so this is app-agnostic. The invite page carries this only as a one-line muted tip ("hop on a call together") — families figure it out once and don't need a banner after that. **In-app browser caveat:** links tapped inside Messenger/WhatsApp/Instagram chats open in their embedded WebView, which is unreliable for games and can't Add to Home Screen — the invite page must detect in-app browsers and show a one-tap "Open in Safari" nudge (Phase 2 scope).
 
 **Tier 1 — in-game signals (Phase 2, tiny build):** pings and emotes — tap a spot to flash a marker, a small wheel of preset expressions ("Help!", "Over here!", "😄", "GG"). Travels over the existing game WebSocket as just another input. Zero moderation surface, works for non-readers, COPPA-clean.
 

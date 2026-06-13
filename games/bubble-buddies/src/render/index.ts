@@ -216,8 +216,9 @@ export function render(
   if (st.mode === 'levelclear') {
     drawCenteredBanner(r, ['LEVEL CLEAR!', `get ready for level ${Math.min(st.level + 2, C.LEVEL_COUNT)}`], SLOT_COLORS[0]!.body);
   } else if (st.mode === 'gameover') {
-    drawCenteredBanner(r, ['GAME OVER', `score ${teamScore}`, 'press any key'], COLORS.angry);
+    // "any button" works for keyboard and touch alike (sim restarts on any bit).
+    drawCenteredBanner(r, ['GAME OVER', `score ${teamScore}`, 'press any button'], COLORS.angry);
   } else if (st.mode === 'win') {
-    drawCenteredBanner(r, ['YOU WIN!', `score ${teamScore}`, 'press any key'], COLORS.banana);
+    drawCenteredBanner(r, ['YOU WIN!', `score ${teamScore}`, 'press any button'], COLORS.banana);
   }
 }

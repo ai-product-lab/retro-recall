@@ -2,70 +2,56 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0F1222" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bubble Buddies" />
     <title>Bubble Buddies</title>
-    <style>
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        background: #06061a;
-        color: #9ca3af;
-        font-family: monospace;
-      }
-      h1 {
-        color: #8be0ff;
-        font-size: 20px;
-        letter-spacing: 4px;
-        margin: 0;
-      }
-      canvas {
-        border: 4px solid #27348f;
-        border-radius: 4px;
-      }
-      p { margin: 0; font-size: 13px; }
-      kbd {
-        background: #1f2545;
-        border-radius: 3px;
-        padding: 1px 5px;
-        color: #e5e7eb;
-      }
-      .online { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
-      .online button {
-        background: #1f2545; color: #8be0ff; border: 1px solid #3b4ec9;
-        border-radius: 4px; font-family: monospace; font-size: 13px;
-        padding: 8px 14px; cursor: pointer;
-      }
-      .online button:active { background: #3b4ec9; }
-      #join-form { display: flex; gap: 6px; }
-      #join-code {
-        width: 70px; text-transform: uppercase; text-align: center; letter-spacing: 3px;
-        background: #11173a; color: #fde047; border: 1px solid #3b4ec9;
-        border-radius: 4px; font-family: monospace; font-size: 14px; padding: 6px;
-      }
-      #online-status { color: #fde047; min-height: 16px; }
-    </style>
   </head>
   <body>
-    <h1>BUBBLE BUDDIES</h1>
-    <div class="online">
-      <button id="create-room">PLAY ONLINE — START A ROOM</button>
-      <form id="join-form">
-        <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off" />
-        <button type="submit">JOIN</button>
-      </form>
+    <div id="stage">
+      <div id="arena">
+        <header id="hud">
+          <div class="hud-row">
+            <span class="hud-title">BUBBLE BUDDIES</span>
+          </div>
+          <div class="hud-row">
+            <!-- Code entry leads (netcode SPEC "Join surfaces"): pinned-app
+                 users type the room code — iOS PWAs can't capture links. -->
+            <form id="join-form">
+              <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off"
+                     inputmode="text" autocapitalize="characters" />
+              <button type="submit" class="chip-btn primary">JOIN</button>
+            </form>
+            <button id="create-room" class="chip-btn">START A ROOM</button>
+            <span id="install-slot"></span>
+          </div>
+          <p id="online-status"></p>
+        </header>
+
+        <canvas id="game"></canvas>
+        <button id="start-gate">
+          <span class="gate-bubble">▶</span>
+          <span class="gate-label touch-only">TAP TO START</span>
+          <span class="gate-label keys-only">CLICK TO START</span>
+          <small>solo practice — grab buddies with PLAY ONLINE</small>
+        </button>
+
+        <div id="dpad" class="ctl-zone" hidden></div>
+        <div id="abzone" class="ctl-zone" hidden></div>
+
+        <p class="keys keys-only">
+          <kbd>←</kbd><kbd>→</kbd> move · <kbd>Z</kbd>/<kbd>Space</kbd> jump ·
+          <kbd>X</kbd> blow bubble
+        </p>
+      </div>
     </div>
-    <p id="online-status"></p>
-    <canvas id="game"></canvas>
-    <p>
-      solo practice above ·
-      <kbd>←</kbd><kbd>→</kbd> move · <kbd>Z</kbd>/<kbd>Space</kbd> jump ·
-      <kbd>X</kbd> blow bubble
-    </p>
+
     <script type="module" src="/src/main.ts"></script>
     <script type="module" src="/src/home.ts"></script>
   </body>

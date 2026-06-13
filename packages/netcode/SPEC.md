@@ -58,12 +58,20 @@ enum, no free text ever. Rendered as a speech bubble over the sender's
 character for 120 ticks. Rate limit: 1 per 30 ticks per player, enforced
 server-side. (Tap-to-ping a map location: parked until a game needs it.)
 
-## Invite page (site scope, but contract lives here)
+## Join surfaces (site scope, but contract lives here)
 
-`/play/bubble-buddies?room=CODE` shows: who's in the room, "start a call on
-FaceTime/Messenger/WhatsApp first" nudge, and an **in-app-browser detector**
-(Messenger/Instagram/WhatsApp WebViews) with a one-tap "Open in Safari"
-escape (ADR-008).
+Two equal paths, because iOS PWAs can't capture links (links always open
+Safari, never the pinned app):
+
+- **Link** (`/play/bubble-buddies?room=CODE`) — the first-timer path: who's
+  in the room, Join button, **in-app-browser detector** (Messenger/Instagram/
+  WhatsApp WebViews) with one-tap "Open in Safari" escape. The call
+  suggestion is a single muted footnote line ("tip: hop on a call together"),
+  not a step.
+- **Code entry** — the regulars' path: the app home screen (especially when
+  running installed/standalone) leads with a big 4-letter code input, so
+  pinned-app users type `BLOB` instead of tapping links. Codes are read-aloud
+  friendly by design (no I/O/Q).
 
 ## Testing
 
