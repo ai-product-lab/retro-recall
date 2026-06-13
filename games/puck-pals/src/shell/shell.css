@@ -1,0 +1,227 @@
+/*
+ * Puck Pals shell styles (ADR-007 mobile-first). Brand palette
+ * (branding/BRAND.md). Canvas is integer-scaled by layout.ts; this file styles
+ * the stage and touch controls and reflows them per orientation.
+ */
+
+:root {
+  color-scheme: dark;
+  --midnight: #0f1222;
+  --raised: #1a1f38;
+  --phosphor: #3df5a6;
+  --paper: #f2efe9;
+  --dim: #8a8fa3;
+  --line: #2a3158;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--midnight);
+  color: var(--paper);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  overscroll-behavior: none;
+}
+
+body {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+body[data-input='keyboard'] .ctl-zone { display: none; }
+body[data-input='touch'] .keys-only { display: none; }
+
+#stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 10px) 10px calc(env(safe-area-inset-bottom) + 10px);
+}
+
+#title { font-size: 14px; letter-spacing: 3px; color: var(--phosphor); margin: 4px 0 0; }
+
+canvas#game {
+  image-rendering: pixelated;
+  background: #0d0d2b;
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+}
+
+.hint { font-size: 11px; color: var(--dim); }
+
+/* --- Touch controls --- */
+
+#controls {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: auto;
+  gap: 12px;
+}
+
+/* 8-way skate pad: the whole round zone is the touch surface. */
+.skate {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: radial-gradient(circle at 50% 50%, var(--raised), #11152b);
+}
+.skate-knob {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 50%;
+  background: var(--phosphor);
+  opacity: 0.85;
+}
+
+.actions { display: flex; align-items: flex-end; gap: 14px; }
+.ctl {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  font-family: inherit;
+}
+.ctl.held { background: var(--line); transform: scale(0.94); }
+.ctl.act-b { background: var(--phosphor); border-color: var(--phosphor); color: #06281a; }
+.ctl.act-a { background: var(--raised); }
+.ctl.dim { opacity: 0.35; }
+
+/* Landscape: keep the pad and buttons low and wide, flanking the canvas. */
+body[data-orientation='landscape'] #controls { padding: 0 6px 4px; }
+body[data-input='keyboard'] #controls { display: none; }
+
+/* --- Online shell (play.ts): HUD bar, roster, invite overlay --- */
+
+body[data-input='keyboard'] .touch-only { display: none; }
+.hidden { display: none !important; }
+
+#hud-bar {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 12px;
+}
+#hud-bar #title { font-size: 14px; letter-spacing: 3px; color: var(--phosphor); margin: 0; }
+.room-chip { color: var(--dim); }
+.room-code { color: var(--star, #ffd166); letter-spacing: 2px; font-weight: bold; }
+#players { display: flex; gap: 10px; flex-wrap: wrap; }
+#players .me { text-decoration: underline; }
+#players .off { opacity: 0.45; }
+#status { margin-left: auto; color: var(--dim); }
+#status.bad { color: var(--cabinet, #ff6b6b); }
+
+.chip-btn {
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--paper);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chip-btn.primary {
+  background: var(--phosphor);
+  border-color: var(--phosphor);
+  color: #06281a;
+  font-weight: bold;
+}
+.chip-btn:active { transform: scale(0.96); }
+
+#name-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 10, 22, 0.92);
+  padding: 16px;
+  z-index: 10;
+}
+.overlay-card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px 18px calc(env(safe-area-inset-bottom) + 18px);
+}
+.joining { font-size: 13px; color: var(--dim); }
+#room-roster { font-size: 12px; color: var(--phosphor); min-height: 1em; }
+#name-input {
+  font: inherit;
+  font-size: 16px;
+  text-align: center;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--midnight);
+  color: var(--paper);
+}
+.hint { font-size: 11px; color: var(--dim); line-height: 1.5; margin: 0; }
+.hint.tip { color: var(--star, #ffd166); opacity: 0.85; }
+.banner.warn {
+  font-size: 12px;
+  color: var(--paper);
+  background: #3a2030;
+  border: 1px solid var(--cabinet, #ff6b6b);
+  border-radius: 10px;
+  padding: 10px;
+}
+.glyph-a, .glyph-b { color: var(--phosphor); font-weight: bold; }
+kbd {
+  background: var(--midnight);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 11px;
+}
+
+/* --- Home-page online bar (index.html) --- */
+#online-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+#join-form { display: flex; gap: 8px; }
+#join-code {
+  width: 84px;
+  font: inherit;
+  font-size: 15px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--midnight);
+  color: var(--paper);
+}
+#online-status { min-height: 1em; margin: 0; text-align: center; }

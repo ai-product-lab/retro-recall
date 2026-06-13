@@ -11,6 +11,7 @@
     { "path": "../../packages/netcode" },
     { "path": "../../games/splash-squad" },
     { "path": "../../games/ramp-riders" },
+    { "path": "../../games/puck-pals" },
     { "path": "../../games/bubble-buddies" }
   ]
 }

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0F1222" />
+    <title>Puck Pals</title>
+    <link rel="stylesheet" href="/src/shell/shell.css" />
+  </head>
+  <body>
+    <main id="stage">
+      <h1 id="title">Puck Pals</h1>
+
+      <!-- Online versus: start a rink or join by code. Solo-vs-CPU plays below
+           without a server; these route to /play/puck-pals (rooms worker). -->
+      <div id="online-bar">
+        <button id="create-room" class="chip-btn primary">PLAY ONLINE</button>
+        <form id="join-form">
+          <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off"
+                 inputmode="text" autocapitalize="characters" spellcheck="false" />
+          <button type="submit" class="chip-btn">JOIN</button>
+        </form>
+      </div>
+      <p id="online-status" class="hint"></p>
+
+      <canvas id="game"></canvas>
+      <p class="hint keys-only">solo vs CPU — ↑↓←→ skate · Z pass · X shoot / check (hold X to wind up) · Enter restart</p>
+      <p class="hint touch-only">solo vs CPU — empty seats play as CPU</p>
+      <div id="controls"></div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/home.ts"></script>
+  </body>
+</html>

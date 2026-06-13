@@ -474,3 +474,56 @@ Note: shipped ahead of the two-phone playtest at Kevin's call ("up sooner, then
 refine"). Refinements still queued: track-length tuning toward 45–90 s, avatar
 body rigs for riders (packages/avatar is on main now), and the landable-deck
 slope-engine follow-up.
+
+## 2026-06-13 — Puck Pals goes live (game #5; versus, the factory + a rebase)
+
+The arcade-hockey game (`game/puck-pals` worktree) — built, then integrated onto
+a `main` that had moved 32 commits under it (Splash Squad, Ramp Riders, avatars,
+the `@retro-recall/shell` extraction). A clean Wave-B report card.
+
+**The game.** Deterministic top-down hockey: momentum/ice-friction skating,
+possession + poke-steal + pass, a wrist shot that charges into a knockdown
+"super slap" with a movement-rooting wind-up tell, body-checks → comic tumbles,
+auto-goalie, axis-flip board banks, goal-line scoring, 3×60s periods +
+sudden-death OT, and CPU skaters that emit the *same* NES bitmask humans do — so
+one skater code path, and "CPU fill" is just an unbound skater. Vertical
+puck-following camera; 8-way skate pad + possession-context touch buttons
+(Pass/Shoot ↔ Check). Online versus mirrors the house netcode (predict the local
+skater, interpolate everything else; the puck is server-owned, never predicted).
+19 game tests incl. a two-client disconnect→CPU-takeover→rejoin gate and two
+invariants kept on purpose: a full all-CPU game always terminates at a result,
+and nobody ever escapes the boards.
+
+**Additive-only held — even across a big rebase.** No `packages/*` edits; the
+game is `games/puck-pals/*` with a local shell (same choice Ramp Riders made —
+`@retro-recall/shell` adoption is optional and not yet uniform). The merge-base
+moved 32 commits, but because the game is self-contained and `NetSim` was
+unchanged, integration was mechanical: re-apply the four additive seams (worker
+`games.ts` + tsconfig + package.json, root tsconfig) onto current `main`, flip
+the registry tile, and **drop a whole commit** — my join-by-code "graduation"
+(worker `roomInfo.game`, a site server-hop resolver) turned out to be exactly
+what Ramp Riders had already shipped as `joinRouteForGame`/`gameForRoom`. Two
+sessions inventing the same small thing in parallel is the predicted cost of
+Wave B; the fix was deleting mine and keeping main's. Bubble Buddies / Splash
+Squad / Ramp Riders fixtures stayed byte-identical (172 + 8 + 7 green).
+
+**Scaffolder friction (report card).** `new-game` hard-stops on the existing
+`games/puck-pals/` that holds `BRIEF.md` (move it aside); the stub is
+platformer-shaped (HeroState/jump/gravity, 128×64) so a top-down game discards
+most of the gameplay stub and ~80% of the renderer/shell stubs — but the
+*contract* parts (NetSim, the self-writing replay harness, registry/worker
+wiring) carried over perfectly; and the registry insert duplicated the
+hand-written Phase-4a tile (should be idempotent on `id:`). None of these cost
+much; the real time went to sim design (the versus control model, CPU AI, the
+possession/charge state machine), exactly where it should.
+
+**Live.** Flipped the tile to `live` ahead of the two-phone playtest — same call
+as Ramp Riders ("up sooner, then refine"). Verified end-to-end against a live
+`wrangler dev`: `POST /api/rooms {game:'puck-pals'}` → `/play/puck-pals?room=CODE`
+(unknown game → 400), a real WebSocket join returns slot 0 + a faceoff snapshot
+(6 skaters, 2 goalies), and the integrated worker reports `roomInfo.game` so the
+library's join-by-code routes a Puck Pals code to the right page. Deploy is
+manual (no CD): the rooms worker must ship *with* Puck Pals registered or prod
+online play 400s. Queued refinements: avatar body rigs for skaters
+(`packages/avatar` is on main now), and a feel pass on skating/checks after the
+playtest.

@@ -11,6 +11,7 @@ import type { NetSim } from '@retro-recall/netcode';
 import { BubbleBuddiesSim } from '@retro-recall/bubble-buddies';
 import { SplashSquadSim } from '@retro-recall/splash-squad';
 import { RampRidersSim } from '@retro-recall/ramp-riders';
+import { PuckPalsSim } from '@retro-recall/puck-pals';
 
 /** Build a fresh room sim for a seed. Player slots fill via joinPlayer(). */
 export type SimFactory = (seed: number) => NetSim;
@@ -19,6 +20,7 @@ export const GAME_SIMS: Record<string, SimFactory> = {
   'bubble-buddies': (seed) => new BubbleBuddiesSim(seed, 0, 0),
   'splash-squad': (seed) => new SplashSquadSim(seed),
   'ramp-riders': (seed) => new RampRidersSim(seed),
+  'puck-pals': (seed) => new PuckPalsSim(seed),
   // <scaffold:games> — `pnpm new-game` inserts new game entries above this line.
 };
 

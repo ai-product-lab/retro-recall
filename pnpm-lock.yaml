@@ -52,6 +52,19 @@ importers:
         specifier: ^7.1.0
         version: 7.3.5(@types/node@25.9.3)(tsx@4.22.4)
 
+  games/puck-pals:
+    dependencies:
+      '@retro-recall/netcode':
+        specifier: workspace:*
+        version: link:../../packages/netcode
+      '@retro-recall/retrokit':
+        specifier: workspace:*
+        version: link:../../packages/retrokit
+    devDependencies:
+      vite:
+        specifier: ^7.1.0
+        version: 7.3.5(@types/node@25.9.3)(tsx@4.22.4)
+
   games/ramp-riders:
     dependencies:
       '@retro-recall/netcode':
@@ -143,6 +156,9 @@ importers:
       '@retro-recall/netcode':
         specifier: workspace:*
         version: link:../../packages/netcode
+      '@retro-recall/puck-pals':
+        specifier: workspace:*
+        version: link:../../games/puck-pals
       '@retro-recall/ramp-riders':
         specifier: workspace:*
         version: link:../../games/ramp-riders
