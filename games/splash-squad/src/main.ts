@@ -14,6 +14,8 @@ import { render } from './render/index';
 import { applyInputMode } from './shell/device';
 import { startLayout } from './shell/layout';
 import { createTouchControls, type TouchControls } from './shell/controls';
+import { unlockAudio } from './shell/audio';
+import { SfxObserver } from './shell/sfx';
 
 const $ = <T extends HTMLElement>(sel: string): T => {
   const el = document.querySelector<T>(sel);
@@ -48,14 +50,19 @@ startLayout(
 // starting point; determinism is about what follows from it.
 const sim = new SplashSquadSim((Date.now() >>> 0) || 1);
 
+const sfx = new SfxObserver();
 let started = false;
 const start = (): void => {
   if (started) return;
   started = true;
+  unlockAudio(); // this tap is the iOS audio-unlock gesture (ADR-007)
   gate.remove();
   startLoop({
     tick: () => sim.tick([keyboard.sample() | (touch?.sample() ?? 0)]),
-    render: () => render(renderer, sim.state),
+    render: () => {
+      render(renderer, sim.state);
+      sfx.observe(sim.state);
+    },
   });
 };
 gate.addEventListener('click', start);

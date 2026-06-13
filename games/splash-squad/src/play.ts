@@ -20,6 +20,8 @@ import { NetView } from './net/view';
 import { applyInputMode } from './shell/device';
 import { startLayout } from './shell/layout';
 import { createTouchControls, type TouchControls } from './shell/controls';
+import { unlockAudio } from './shell/audio';
+import { SfxObserver } from './shell/sfx';
 import { createRoom, fetchRoomInfo, isRoomCodeLike, shareInvite, wsUrl } from './shell/invite';
 
 const $ = <T extends HTMLElement>(sel: string): T => {
@@ -70,6 +72,7 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve) => {
     const go = (): void => {
       if (nameInput.value.trim().length === 0) nameInput.value = 'Squaddie';
+      unlockAudio(); // the join tap doubles as the iOS audio-unlock gesture
       resolve();
     };
     $('#join-btn').addEventListener('click', go);
@@ -135,11 +138,15 @@ async function main(): Promise<void> {
   );
 
   const view = new NetView(client);
+  const sfx = new SfxObserver();
   startLoop({
     tick: () => client.localTick(keyboard.sample() | (touch?.sample() ?? 0)),
     render: () => {
       const v = view.frame(performance.now());
-      if (v) render(renderer, v);
+      if (v) {
+        render(renderer, v);
+        sfx.observe(v);
+      }
     },
   });
 }

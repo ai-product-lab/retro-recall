@@ -299,6 +299,17 @@ a shared `@retro-recall/shell` (and a comms layer) so game #3/#4 don't copy-past
 **Deferred / gated (told Kevin).** Avatars are blocked — `packages/avatar` isn't
 on main yet (Phase 3, the `phase/avatars` worktree); v1 ships placeholder
 rectangles per the SPEC and wires real body rigs when "Get Sprited" lands across
-all games. SFX (SPEC §12, view-layer) and real pixel art are not yet wired.
-The registry stays `coming-soon`: the IP review passed (`games/splash-squad/IP-REVIEW.md`)
-and CI is green, but the `→ live` flip waits on Kevin's two-phone playtest.
+all games. Real pixel art is still deferred. The registry stays `coming-soon`:
+the IP review passed (`games/splash-squad/IP-REVIEW.md`) and CI is green, but the
+`→ live` flip waits on Kevin's two-phone playtest.
+
+**Follow-up (same session): SFX landed (SPEC §12).** A tiny generated WebAudio
+synth (`src/shell/audio.ts`) — no asset files, so ADR-005 provenance stays
+trivial — plus a view-layer `SfxObserver` (`src/shell/sfx.ts`) that diffs
+consecutive sim states into sound events (squirt, splash-hit, sputter, splash-
+chain, pickup, refill, downed, revive, boss-hit/defeat, area/zone-clear, win,
+game-over). The sim stays silent and deterministic; the observer resyncs on
+level changes so respawns don't trigger phantom sounds, and runs on both the
+local sim (solo) and interpolated snapshots (online). Music-free, as asked.
+Still open: the shared `@retro-recall/shell`/comms extraction (lands on main as
+its own PR per ADR-009, not from this worktree) and real pixel art.
