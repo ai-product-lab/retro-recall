@@ -47,13 +47,15 @@ interface SlotMeta {
   token: string;
   connId: string | null;
   disconnectedAtMs: number | null;
+  /** Chosen avatar (generated id or fallback id); undefined → placeholder. */
+  avatarId?: string;
 }
 
 /** Persisted shape (DO storage): everything but live connections. */
 interface PersistedRoom {
   seed: number;
   snapshot: string | null;
-  slots: ({ name: string; token: string; disconnectedAtMs: number | null } | null)[];
+  slots: ({ name: string; token: string; disconnectedAtMs: number | null; avatarId?: string } | null)[];
   lastEmoteTick: number[];
 }
 
@@ -123,7 +125,7 @@ export class RoomCore {
       seed: this.opts.seed,
       snapshot: this.sim?.snapshot() ?? null,
       slots: this.slots.map((s) =>
-        s ? { name: s.name, token: s.token, disconnectedAtMs: s.disconnectedAtMs } : null,
+        s ? { name: s.name, token: s.token, disconnectedAtMs: s.disconnectedAtMs, avatarId: s.avatarId } : null,
       ),
       lastEmoteTick: this.lastEmoteTick,
     };
@@ -211,6 +213,7 @@ export class RoomCore {
           meta.connId = connId;
           meta.disconnectedAtMs = null;
           meta.name = msg.playerName;
+          if (msg.avatarId !== undefined) meta.avatarId = msg.avatarId;
           this.conns.set(connId, slot);
           this.sim?.rejoinPlayer(slot);
           this.welcome(connId, slot, meta.token);
@@ -230,6 +233,7 @@ export class RoomCore {
         token,
         connId,
         disconnectedAtMs: null,
+        avatarId: msg.avatarId,
       };
       this.conns.set(connId, slot);
       this.sim.joinPlayer(slot);
@@ -327,7 +331,7 @@ export class RoomCore {
 
   private peerSlots(): (PeerSlotMeta | null)[] {
     return this.slots.map((s, slot) =>
-      s ? { slot, name: s.name, connected: s.connId !== null } : null,
+      s ? { slot, name: s.name, connected: s.connId !== null, avatarId: s.avatarId } : null,
     );
   }
 

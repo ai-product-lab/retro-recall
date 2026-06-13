@@ -13,8 +13,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@retro-recall/avatar": "workspace:*",
     "@retro-recall/netcode": "workspace:*",
-    "@retro-recall/retrokit": "workspace:*"
+    "@retro-recall/retrokit": "workspace:*",
+    "@retro-recall/shell": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

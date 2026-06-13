@@ -3,9 +3,13 @@
   "references": [
     { "path": "packages/retrokit" },
     { "path": "packages/netcode" },
+    { "path": "packages/shell" },
+    { "path": "packages/avatar" },
     { "path": "games/bubble-buddies" },
     { "path": "games/splash-squad" },
+    { "path": "games/ramp-riders" },
     { "path": "site" },
-    { "path": "workers/rooms" }
+    { "path": "workers/rooms" },
+    { "path": "workers/avatar" }
   ]
 }

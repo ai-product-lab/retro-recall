@@ -1,0 +1,155 @@
+/*
+ * Ramp Riders shell styles (ADR-007 mobile-first). Brand palette
+ * (branding/BRAND.md). Canvas is integer-scaled by layout.ts; this file styles
+ * the stage and touch controls and reflows them per orientation.
+ */
+
+:root {
+  color-scheme: dark;
+  --midnight: #0f1222;
+  --raised: #1a1f38;
+  --phosphor: #3df5a6;
+  --paper: #f2efe9;
+  --dim: #8a8fa3;
+  --line: #2a3158;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--midnight);
+  color: var(--paper);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  overscroll-behavior: none;
+}
+
+body {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+body[data-input='keyboard'] .ctl-zone { display: none; }
+body[data-input='touch'] .keys-only { display: none; }
+
+#stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 10px) 10px calc(env(safe-area-inset-bottom) + 10px);
+}
+
+#title { font-size: 14px; letter-spacing: 3px; color: var(--phosphor); margin: 4px 0 0; }
+
+canvas#game {
+  image-rendering: pixelated;
+  background: #0d0d2b;
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+}
+
+.hint { font-size: 11px; color: var(--dim); }
+
+/* --- Touch controls --- */
+
+#controls {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: auto;
+}
+
+.ctl-zone { display: flex; gap: 12px; align-items: flex-end; }
+.ctl-zone.lanes { flex-direction: column; gap: 10px; }
+.ctl-zone.lean { gap: 8px; }
+
+.ctl {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--paper);
+  font-size: 18px;
+  font-family: inherit;
+}
+.ctl:active,
+.ctl.held { background: var(--line); transform: scale(0.95); }
+
+/* Throttle: pedal (cyan) + pump (coral, the boost). */
+.ctl.pedal { background: #15324a; border-color: #4cc9f0; color: #cdeefb; font-size: 12px; }
+.ctl.pump  { background: #4a1f22; border-color: #ff6b6b; color: #ffd9d9; font-size: 13px; }
+.ctl.pump.held { background: #ff6b6b; color: #2a0c0c; }
+.ctl.pedal.held { background: #4cc9f0; color: #06222e; }
+
+/* Lane buttons read as the phosphor accent. */
+.ctl.lane-up, .ctl.lane-down { border-color: var(--phosphor); color: var(--phosphor); }
+
+/* Lean is secondary — smaller, lower corners, surfaced mainly in the air. */
+.ctl.lean-back, .ctl.lean-fwd { width: 46px; height: 46px; font-size: 16px; color: var(--dim); }
+
+/* Landscape: keep zones in the bottom corners with breathing room. */
+body[data-orientation='landscape'] #controls { padding: 0 6px; }
+body[data-orientation='portrait'] #controls { padding: 0 4px; }
+
+/* --- Online HUD + join overlay (play route) --- */
+
+#hud { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 4px; }
+.hud-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.room-chip { font-size: 11px; color: var(--dim); }
+.room-code { color: var(--phosphor); letter-spacing: 2px; font-weight: bold; }
+#riders { display: flex; gap: 10px; font-size: 11px; flex-wrap: wrap; }
+#status { font-size: 11px; color: var(--dim); }
+#status.bad { color: #ff6b6b; }
+
+.chip-btn {
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--paper);
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-family: inherit;
+  font-size: 11px;
+}
+.chip-btn.primary { background: var(--phosphor); border-color: var(--phosphor); color: #06281a; font-size: 14px; padding: 8px 18px; }
+
+#name-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 12, 24, 0.86);
+  padding: 16px;
+}
+#name-overlay.hidden { display: none; }
+.overlay-card {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+  max-width: 320px;
+}
+.joining { font-size: 13px; color: var(--dim); }
+#roster-pre { font-size: 11px; color: var(--phosphor); }
+#name-input {
+  background: var(--midnight);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--paper);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  width: 100%;
+  text-align: center;
+}

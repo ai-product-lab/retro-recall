@@ -11,9 +11,12 @@ import { startLoop } from '@retro-recall/retrokit/loop';
 import { SCREEN_H, SCREEN_W } from './sim/constants';
 import { SplashSquadSim } from './sim/sim';
 import { render } from './render/index';
-import { applyInputMode } from './shell/device';
-import { startLayout } from './shell/layout';
-import { createTouchControls, type TouchControls } from './shell/controls';
+import {
+  applyInputMode,
+  createTouchControls,
+  startLayout,
+  type TouchControls,
+} from '@retro-recall/shell';
 import { unlockAudio } from './shell/audio';
 import { SfxObserver } from './shell/sfx';
 

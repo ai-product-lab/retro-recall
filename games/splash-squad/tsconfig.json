@@ -9,6 +9,7 @@
   "include": ["src"],
   "references": [
     { "path": "../../packages/retrokit" },
-    { "path": "../../packages/netcode" }
+    { "path": "../../packages/netcode" },
+    { "path": "../../packages/shell" }
   ]
 }

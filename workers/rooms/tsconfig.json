@@ -10,6 +10,7 @@
   "references": [
     { "path": "../../packages/netcode" },
     { "path": "../../games/splash-squad" },
+    { "path": "../../games/ramp-riders" },
     { "path": "../../games/bubble-buddies" }
   ]
 }

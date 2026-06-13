@@ -313,3 +313,146 @@ level changes so respawns don't trigger phantom sounds, and runs on both the
 local sim (solo) and interpolated snapshots (online). Music-free, as asked.
 Still open: the shared `@retro-recall/shell`/comms extraction (lands on main as
 its own PR per ADR-009, not from this worktree) and real pixel art.
+
+## 2026-06-12 — Phase 3: Get Sprited (avatars + real art)
+
+The signature feature lands: upload a photo, become a pixel buddy, play as
+yourself. ADR-004's split held up — **AI makes the identity, templates make
+the animation** — and it's why this worked on the first real try where a
+full-sprite-sheet ask would have flailed.
+
+**One good head beats a whole sheet.** The Avatar Worker asks Gemini
+(`gemini-2.5-flash-image`) for a single 24×24-ish head against a locked,
+versioned style prompt, runs input + output moderation (vision pass, fails
+closed), palette-quantizes to PALETTE_P1, stores it in R2 by content hash,
+and **drops the photo**. The client then composites that head onto
+hand-authored body rigs into a 12-frame sheet (idle/walk/jump/blow/rescue) —
+the same `composeSheet` for generated *and* fallback buddies, so everyone
+animates identically. A local harness (`gen` + `compose`, writing to
+`gen-out/`) ran the real pipeline so we could eyeball heads and motion before
+wiring any of it into the game.
+
+**The lie the model tells: "transparent background."** It doesn't — it hands
+back an opaque fill every time, so the first composited buddies were faces
+trapped in a solid square (invisible until composited; the head previews had
+blended into the page background and fooled the first eyeball). Fix is two
+parts: a border flood-fill **matte** that keys out the connected background
+(stops at the head's dark outline, spares background-colored pixels *inside*
+the face), and style prompt **v2** — ask for a flat magenta chroma key and
+drop the "CRT glow" clause that was painting colored halos. Versioned, so it
+re-styles only new players.
+
+**Eight original creatures for free.** The fallback gallery (declined AI /
+failure / rate-limit) is generated from one parameterized `creature()` —
+silhouette → auto 1px outline → eyes → smile → a top feature (ears, antenna,
+horn…). No hand-pixeling, distinct by color + feature, and they flow through
+the exact same compositor. Picking one is instant; play never blocks.
+
+**"avatarId already flows through join" — it didn't.** It was in the message
+*type* and nothing else: not sent by the client, not stored on the server,
+not in the roster, not seen by the renderer. Threaded it end to end
+(SlotMeta + DO persistence, set on join *and* rejoin, surfaced in
+PeerSlotMeta) and the renderer now blits the per-slot sheet via
+`ctx.drawImage` — no RetroKit change needed, `ctx` is already public. Pose
+comes from `phase/grounded/vy/blowCooldown`, and since the sim has no `vx`,
+walk-vs-idle is an x-delta the renderer tracks itself. Misses fall back to
+the placeholder critter, so a slow R2 fetch never drops a frame.
+
+**Real art, by palette cohesion.** The world was drawn in ad-hoc colors that
+weren't PALETTE_P1, so avatars wouldn't match it. Recolored everything to the
+house palette and gave it shape: navy blocks with a cyan bevel only on
+exposed ledges, mint one-way platforms with drip-studs, and enemies that are
+now *grumpy* — angry slanted brows + a frown read them as foes, not buddies.
+Original shapes throughout; nothing traceable (ADR-005).
+
+**Verification.** 112 unit/integration tests green (sim + replay fixtures
+untouched — the avatar work never goes near the deterministic core). The
+Playwright gate (chromium + webkit) actually *exercises* the new client: the
+join screenshots show the picker rendering 8 composited buddies through the
+real `createImageBitmap`→canvas path on every viewport. Honest gaps: the
+full key-bound, Gemini-mocked moderation **rejection** e2e is deferred to
+keep the worker tests hermetic — the gate's fail-closed decision is unit-
+tested (`parseModerationVerdict`) and the reason→422→fallback mapping is a
+one-liner — and the two-phone, real-photo phone demo is Kevin's to run.
+
+Phase gate remaining (human-run): Kevin's Gemini key + worker setup (R2
+bucket, KV namespace, `wrangler secret put GEMINI_API_KEY`), deploy, the
+Phase 2 DNS CNAME, and the photo-on-a-phone demo.
+
+## 2026-06-12 — Wave B: Ramp Riders playable (game #4, the factory's first parallel build)
+
+First game built in a Stage-2 worktree (`game/ramp-riders`), additive-only — no
+`packages/*` edits. Empty `games/ramp-riders/` (just a BRIEF) to a playable
+1–4 online BMX racer in one session.
+
+**The factory report card (the point of ADR-009 Stage 2).**
+- `pnpm new-game ramp-riders` did all the wiring — sim/renderer/shell stubs,
+  test+fixture harness, play route, and the four additive seam edits (root
+  tsconfig, worker tsconfig/package.json/games.ts) — and it built + tested
+  green out of the box. Game #4's *infra* cost was ~zero, exactly the thesis.
+- **Scaffolder friction (two real ones, both worth fixing before games #3/#4):**
+  (1) it `die`s if `games/<id>/` already exists, but a pre-written `BRIEF.md`
+  lives there — so I had to stash the BRIEF, remove the dir, scaffold, restore.
+  (2) it blindly inserts a registry entry even when one exists (Ramp Riders had
+  a hand-authored coming-soon tile), producing a duplicate I deleted by hand.
+  Both argue for a `--brief-exists` / idempotent-by-id registry insert.
+- Where the time actually went: **not** scaffolding — the terrain/physics. The
+  rest (constants, tracks, renderer, touch, netcode client) flowed from the SPEC
+  and from copying Bubble Buddies' conventions.
+
+**The one hard problem: slopes + a tall hitbox.** RetroKit's `moveAABB` resolves
+X then Y with slope tiles non-solid in the X pass, and the rider hitbox is ~2
+tiles tall. First two terrain attempts wedged the rider dead on a ramp: any
+**solid tile at the cresting box's foot row** is a wall the X pass slams into.
+Fix was geometric, not engine (additive rule held): ramps are clean slope-tile
+diagonals with **empty interiors** (solid only at ground rows); no elevated
+solid decks. That cost us the landable tabletop and down-ramp landings — v1
+ramps are pure launch kickers with forgiving flat landings (`AIR_ROTATE = 0`, a
+level pop lands clean with no input — right call for kids). Landable decks /
+lean-to-match-downslope are a polish follow-up. Lesson for the other worktrees:
+*the slope core wants either a shorter hitbox or a slope-aware X pass before
+mounded terrain gets rich* — a candidate engine PR, not a game hack.
+
+**Determinism held.** No gameplay RNG (sprinklers are tick-periodic), riders
+update in slot order, finish ties break by slot. 9 sim unit tests + a full-race
+golden fixture (`replay-001.json`, regenerated intentionally). Bubble Buddies'
+fixtures stayed **byte-identical** through the build — additive-only, proven.
+
+**Netcode (mode per BRIEF: 1–4 race).** Server side was one line
+(`games.ts` factory, scaffolded). Client predicts only its own rider and
+interpolates rivals between snapshots (riders never collide, so divergence is
+invisible — the latency-tolerant mode the BRIEF promised). Disconnect coasts to
+a stop, no CPU takeover. Per-rider "junior boost" (youngest-only) needs a
+netcode join-metadata field `JoinMsg` lacks — parked; v1 ships the room-level
+rubber-band toggle instead (additive, tested).
+
+**Art / IP (ADR-005 pass).** Original placeholder art only: a chunky kid-on-BMX
+silhouette (wheels/frame/helmet), dirt-and-grass terrain, cones/sprinklers/hose/
+mud — generic backyard, no Nintendo/Konami/Taito names, characters, or trade
+dress in identifiers, assets, or copy. "Excite Bike" appears only as internal
+inspiration in the BRIEF, never in code. Avatar body rigs await `packages/avatar`
+landing on main (Phase 3, concurrent worktree) — renderer-only, sim is
+avatar-agnostic.
+
+**Verified.** typecheck + lint clean; full suite 105 + 8 rooms green; both
+routes build; headless-browser smoke of the solo race (renders, no console
+errors) and the online join overlay.
+
+**What's left before the registry flips coming-soon → live (gate per ADR-009):**
+CI green ✓ and IP review ✓ are done; the **two-phone playtest is human-run** and
+still owed, so the tile stays coming-soon. Flipping is a one-liner once it
+passes: set `status: 'live'` + `route: '/play/ramp-riders/'` on the registry
+entry. Tuning expected from the playtest — track lengths land ~20–26 s at full
+boost (short of the 45–90 s target; bump repeat counts), and landing feel.
+## 2026-06-13 — Shared shell package (ADR-010), the first Wave-B-driven seam
+
+Splash Squad surfaced the first real duplication of the factory era: it copied
+Bubble Buddies' layout engine + 8-way touch pad + device detection verbatim
+(correctly — a game worktree can't touch `packages/*`). So those three generic
+modules now live in `@retro-recall/shell`, extracted with `git mv` (history
+preserved) and consumed by Bubble Buddies; its local copies are gone. Per
+ADR-009 this lands on `main` as its own PR — the game worktrees rebase and
+switch their imports, dropping their local copies. Verified green: tsc, lint,
+full suite + BB e2e graph, both BB web entries build. Game-specific shell
+(audio/pwa/invite/emote) and the control CSS stay per-game for now; a shared CSS
+and an ADR-008 comms layer are the tracked next extractions.
