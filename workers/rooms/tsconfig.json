@@ -9,6 +9,7 @@
   "include": ["src"],
   "references": [
     { "path": "../../packages/netcode" },
+    { "path": "../../games/splash-squad" },
     { "path": "../../games/bubble-buddies" }
   ]
 }

@@ -4,6 +4,7 @@
     { "path": "packages/retrokit" },
     { "path": "packages/netcode" },
     { "path": "games/bubble-buddies" },
+    { "path": "games/splash-squad" },
     { "path": "site" },
     { "path": "workers/rooms" }
   ]

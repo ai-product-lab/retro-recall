@@ -1,0 +1,12 @@
+/** Splash Squad tuning constants. Integer / fixed-point only (determinism). */
+export const TILE_SIZE = 8;
+export const MAX_PLAYERS = 4;
+/** Spawn tile (slot N spawns SPAWN_TX + N). */
+export const SPAWN_TX = 2;
+export const SPAWN_TY = 5;
+export const HERO_W = 8;
+export const HERO_H = 8;
+export const WALK_SPEED = 192; // subpixels/tick
+export const JUMP_VELOCITY = -300; // subpixels/tick (negative = up)
+export const GRAVITY = 16;
+export const MAX_FALL = 512;

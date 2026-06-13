@@ -46,6 +46,19 @@ importers:
         specifier: ^7.1.0
         version: 7.3.5(@types/node@25.9.3)
 
+  games/splash-squad:
+    dependencies:
+      '@retro-recall/netcode':
+        specifier: workspace:*
+        version: link:../../packages/netcode
+      '@retro-recall/retrokit':
+        specifier: workspace:*
+        version: link:../../packages/retrokit
+    devDependencies:
+      vite:
+        specifier: ^7.1.0
+        version: 7.3.5(@types/node@25.9.3)
+
   packages/netcode:
     dependencies:
       '@retro-recall/retrokit':
@@ -71,6 +84,9 @@ importers:
       '@retro-recall/retrokit':
         specifier: workspace:*
         version: link:../../packages/retrokit
+      '@retro-recall/splash-squad':
+        specifier: workspace:*
+        version: link:../../games/splash-squad
     devDependencies:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.9.12
