@@ -37,6 +37,8 @@ export interface RoomClientOptions<S extends NetSim> {
   /** Blank sim to restore snapshots into (seed irrelevant). */
   createSim: () => S;
   playerName: string;
+  /** Chosen avatar (generated id or fallback id); sent with join. */
+  avatarId?: string;
   /** Resume a previous session's slot + score. */
   rejoinToken?: string;
   onEvent?: (ev: RoomClientEvent) => void;
@@ -93,6 +95,7 @@ export class RoomClient<S extends NetSim> {
         JSON.stringify({
           type: 'join',
           playerName: this.opts.playerName,
+          avatarId: this.opts.avatarId,
           rejoinToken: this.rejoinToken,
         }),
       );
