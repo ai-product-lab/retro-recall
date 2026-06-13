@@ -43,6 +43,16 @@ jobs:
         if: steps.changes.outputs.worker == 'true'
         run: pnpm --filter @retro-recall/rooms-worker run deploy
 
+      # The site is static and cheap to redeploy — always ship it. Both deploys
+      # happen before the smoke test so a transient server issue (e.g. a Free
+      # quota 429) can't block the independent site deploy.
+      - run: pnpm build:site
+      - name: Deploy site (Cloudflare Pages)
+        run: npx wrangler pages deploy dist-deploy --project-name retro-recall
+
+      # Final health check: flags a broken server deploy (fails the run) without
+      # gating the deploys above. A 429 here means the Free daily quota/rate is
+      # exhausted (server unreachable), not a bad deploy.
       - name: Smoke test the rooms Worker
         if: steps.changes.outputs.worker == 'true'
         run: |
@@ -60,11 +70,6 @@ jobs:
           curl -s "$CANONICAL_ORIGIN/api/rooms/$CODE" | grep -q '"game":"ramp-riders"' \
             && echo "✓ server tags the room with its game" \
             || { echo "::error::room lookup missing game tag"; exit 1; }
-
-      # The site is static and cheap to redeploy — always ship it.
-      - run: pnpm build:site
-      - name: Deploy site (Cloudflare Pages)
-        run: npx wrangler pages deploy dist-deploy --project-name retro-recall
 
   # ── Preview: a Pages deploy per PR, wired to the prod rooms Worker so the QA
   #    env has working multiplayer (cross-origin; the Worker sends CORS '*'). ──
