@@ -1,0 +1,20 @@
+/**
+ * __NAME__ renderer stub. Floats are fine here — render never feeds the sim.
+ * Reads the sim state read-only and draws each hero. Replace with real art.
+ */
+import { Canvas2DRenderer } from '@retro-recall/retrokit/render';
+import { SUBPX } from '@retro-recall/retrokit/sim';
+import * as C from '../sim/constants';
+import type { GameState } from '../sim/sim';
+
+const SLOT_COLORS = ['#3df5a6', '#4cc9f0', '#ffd166', '#ff6b6b'];
+
+export function render(r: Canvas2DRenderer, state: GameState): void {
+  r.clear('#0d0d2b');
+  state.players.forEach((p, slot) => {
+    if (!p) return;
+    const px = Math.floor(p.x / SUBPX);
+    const py = Math.floor(p.y / SUBPX);
+    r.rect(px, py, C.HERO_W, C.HERO_H, SLOT_COLORS[slot % SLOT_COLORS.length]!);
+  });
+}

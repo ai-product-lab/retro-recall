@@ -95,6 +95,7 @@ export const GAMES: readonly GameEntry[] = [
       notes: ['Riders pass through each other — no collision griefing.', 'A track editor is the headline later phase.'],
     },
   },
+  // <scaffold:registry> — `pnpm new-game` inserts new game entries above this line.
 ];
 
 /** The lone entry, by id. */
