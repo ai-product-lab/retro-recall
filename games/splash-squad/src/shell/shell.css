@@ -1,14 +1,19 @@
 /*
- * Splash Squad shell styles (ADR-007 mobile-first). Brand palette
- * (branding/BRAND.md). Canvas is integer-scaled by layout.ts; this file styles
- * the stage and touch controls and reflows them per orientation.
+ * Bubble Buddies shell (ADR-007 mobile-first). One stylesheet for the home
+ * and play pages. Brand palette (branding/BRAND.md): Midnight #0F1222,
+ * Phosphor #3DF5A6, Bubble #4CC9F0, Cabinet #FF6B6B, Star #FFD166,
+ * Paper #F2EFE9. Layout geometry (playfield/zone rects) is set inline by
+ * src/shell/layout.ts; this file styles what lives inside those rects.
  */
 
 :root {
   color-scheme: dark;
   --midnight: #0f1222;
-  --raised: #1a1f38;
+  --midnight-raised: #1a1f38;
   --phosphor: #3df5a6;
+  --bubble: #4cc9f0;
+  --cabinet: #ff6b6b;
+  --star: #ffd166;
   --paper: #f2efe9;
   --dim: #8a8fa3;
   --line: #2a3158;
@@ -20,69 +25,328 @@ html, body {
   margin: 0;
   height: 100%;
   background: var(--midnight);
-  color: var(--paper);
+  color: var(--dim);
   font-family: ui-monospace, Menlo, Consolas, monospace;
   overscroll-behavior: none;
 }
 
 body {
+  /* In-game gesture suppression: no scroll, no pinch, no double-tap zoom,
+     no long-press callout. Buttons/inputs that need taps still get them. */
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
 }
-body[data-input='keyboard'] .ctl-zone { display: none; }
-body[data-input='touch'] .keys-only { display: none; }
+
+/* Device-aware copy: device.ts stamps <body data-input>. */
+body[data-input='touch'] .keys-only { display: none !important; }
+body[data-input='keyboard'] .touch-only { display: none !important; }
+
+/* --- Stage / arena (layout.ts positions children of #arena) --- */
 
 #stage {
   position: fixed;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: calc(env(safe-area-inset-top) + 10px) 10px calc(env(safe-area-inset-bottom) + 10px);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-#title { font-size: 14px; letter-spacing: 3px; color: var(--phosphor); margin: 4px 0 0; }
+#arena { position: relative; width: 100%; height: 100%; overflow: hidden; }
 
 canvas#game {
+  display: block;
   image-rendering: pixelated;
   background: #0d0d2b;
   outline: 2px solid var(--line);
   outline-offset: 2px;
 }
 
-.hint { font-size: 11px; color: var(--dim); }
+/* --- HUD --- */
 
-/* --- Touch controls --- */
-
-#controls {
-  width: 100%;
+#hud {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-top: auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 0;
+  position: relative;
+}
+[data-orientation='landscape'] #hud {
+  flex-direction: row;
+  justify-content: center;
+  gap: 14px;
+  padding-top: 2px;
 }
 
-.ctl-zone { display: flex; gap: 14px; }
+.hud-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 24px;
+}
 
-.ctl {
-  width: 64px;
-  height: 64px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--raised);
+.hud-title {
+  color: var(--bubble);
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 3px;
+}
+/* Phone landscape: every CSS pixel of height matters — drop the wordmark. */
+body[data-input='touch'] [data-orientation='landscape'] .hud-title { display: none; }
+
+.room-chip { font-size: 12px; }
+.room-code { color: var(--star); font-size: 16px; letter-spacing: 4px; font-weight: bold; }
+
+.chip-btn {
+  background: var(--midnight-raised);
   color: var(--paper);
-  font-size: 22px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   font-family: inherit;
+  font-size: 12px;
+  padding: 7px 12px;
+  cursor: pointer;
 }
-.ctl:active { background: var(--line); transform: scale(0.95); }
-.ctl.jump {
+.chip-btn:active { background: var(--line); transform: scale(0.96); }
+.chip-btn.primary {
   background: var(--phosphor);
   border-color: var(--phosphor);
   color: #06281a;
+  font-weight: bold;
+}
+.chip-btn.primary:active { transform: scale(0.96); }
+.pin-hint { color: var(--star); }
+
+#players { display: flex; gap: 10px; font-size: 11px; min-height: 14px; }
+#players .me { text-decoration: underline; }
+#players .off { opacity: 0.45; }
+
+#status { font-size: 11px; min-height: 14px; color: var(--dim); }
+#status.bad { color: var(--cabinet); }
+
+#online-status { color: var(--star); font-size: 11px; min-height: 14px; margin: 0; }
+
+/* Code entry leads the home screen ("Join surfaces"): big, thumb-friendly. */
+#join-form { display: flex; gap: 6px; }
+#join-code {
+  width: 116px;
+  min-height: 48px;
+  text-transform: uppercase;
+  text-align: center;
+  letter-spacing: 6px;
+  background: var(--midnight-raised);
+  color: var(--star);
+  border: 2px solid var(--star);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: bold;
+  padding: 8px 6px;
+}
+#join-code::placeholder { color: var(--dim); font-weight: normal; }
+#join-form .chip-btn { min-height: 48px; font-size: 14px; }
+
+/* --- Keyboard legend (desktop only; layout.ts positions it) --- */
+
+.keys { font-size: 12px; text-align: center; margin: 0; }
+kbd {
+  background: var(--midnight-raised);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--paper);
 }
 
-/* Portrait: controls hug the bottom corners with room between. */
-body[data-orientation='landscape'] #controls { padding: 0 6px; }
+/* --- Touch zones (rects from layout.ts) --- */
+
+.ctl-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+/* D-pad: NES cross. The zone is the touch surface; this is the picture. */
+.dpad {
+  position: relative;
+  width: clamp(120px, 78%, 168px);
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+.dpad-arm, .dpad-hub {
+  position: absolute;
+  background: var(--midnight-raised);
+  border: 2px solid var(--line);
+}
+.dpad-arm.up    { left: 33.4%; top: 0;     width: 33.2%; height: 36%; border-bottom: none; border-radius: 8px 8px 0 0; }
+.dpad-arm.down  { left: 33.4%; bottom: 0;  width: 33.2%; height: 36%; border-top: none; border-radius: 0 0 8px 8px; }
+.dpad-arm.left  { left: 0;     top: 33.4%; width: 36%;   height: 33.2%; border-right: none; border-radius: 8px 0 0 8px; }
+.dpad-arm.right { right: 0;    top: 33.4%; width: 36%;   height: 33.2%; border-left: none; border-radius: 0 8px 8px 0; }
+.dpad-hub       { left: 33.4%; top: 33.4%; width: 33.2%; height: 33.2%; border: none; }
+.dpad-arm.held { background: var(--bubble); border-color: var(--bubble); }
+
+/* A/B: Game Boy diagonal — B low-left, A high-right. */
+.btn-cluster {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+}
+.pad-btn {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: bold;
+  background: var(--midnight-raised);
+}
+.pad-btn.a { border: 2px solid var(--phosphor); color: var(--phosphor); transform: translateY(-16px); }
+.pad-btn.b { border: 2px solid var(--cabinet); color: var(--cabinet); transform: translateY(16px); }
+.pad-btn.a.held { background: var(--phosphor); color: #06281a; }
+.pad-btn.b.held { background: var(--cabinet); color: #3d0a0a; }
+
+/* --- Overlays --- */
+
+.hidden { display: none !important; }
+
+#name-overlay, .pinme-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 24, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow-y: auto;
+  /* Overlays may scroll (short landscape screens) even though play can't. */
+  touch-action: pan-y;
+}
+.pinme-overlay { z-index: 40; }
+
+.overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+.overlay-card h2 { color: var(--bubble); font-size: 16px; letter-spacing: 2px; margin: 0; }
+.overlay-card p { margin: 0; font-size: 13px; line-height: 1.5; }
+
+.banner {
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.55;
+  background: var(--midnight-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.banner strong { color: var(--bubble); }
+.banner.warn { border-color: #b45309; background: #2a1a05; color: var(--star); }
+
+.joining { font-size: 13px; }
+#room-roster { font-size: 12px; min-height: 14px; }
+
+#name-input {
+  background: var(--midnight-raised);
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 18px;
+  padding: 10px;
+  text-align: center;
+  width: 220px;
+}
+
+#join-btn {
+  font-size: 16px;
+  padding: 14px 30px;
+  min-height: 48px;
+}
+
+.hint { font-size: 12px; color: var(--dim); margin: 0; line-height: 1.6; }
+.hint.tip { opacity: 0.75; text-align: center; }
+.hint .glyph-a { color: var(--phosphor); }
+.hint .glyph-b { color: var(--cabinet); }
+
+/* Pin-me walkthrough */
+.pinme-bubble { font-size: 40px; }
+.pinme-steps {
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+  padding-left: 22px;
+  color: var(--paper);
+}
+.pinme-steps b { color: var(--bubble); }
+
+/* Tap-to-start gate (home page; layout.ts gives it the playfield rect) */
+#start-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(13, 13, 43, 0.86);
+  border: none;
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+  color: var(--paper);
+  font-family: inherit;
+  cursor: pointer;
+  z-index: 5;
+}
+#start-gate .gate-bubble {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 3px solid var(--bubble);
+  color: var(--bubble);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: rgba(76, 201, 240, 0.12);
+}
+#start-gate .gate-label { font-size: 14px; letter-spacing: 2px; color: var(--phosphor); font-weight: bold; }
+#start-gate small { font-size: 11px; color: var(--dim); }
+#start-gate:active .gate-bubble { transform: scale(1.12); }
+
+/* --- Emote wheel (unchanged mechanics, brand restyle) --- */
+
+.emote-wheel { position: fixed; inset: 0; z-index: 20; background: rgba(8, 10, 24, 0.55); }
+.emote-option {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 64px;
+  height: 44px;
+  border-radius: 22px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--midnight-raised);
+  border: 2px solid var(--line);
+  color: var(--paper);
+}
+.emote-option.hot { background: var(--bubble); border-color: var(--bubble); color: #06222e; }
+.emote-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  color: var(--dim);
+}

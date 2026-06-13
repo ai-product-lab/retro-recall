@@ -16,15 +16,18 @@ const FIXTURE_PATH = fileURLToPath(new URL('./fixtures/replay-001.json', import.
 const SEED = 0xc0ffee;
 const HASH_EVERY = 60; // sample every second of sim time
 
+// A full solo run-and-soak: advance the squad right while firing, jump-soak,
+// pause, then push on — exercises movement, the tank, the scroll window, and
+// several camera-triggered spawn waves over ~5 s of sim time.
 const LOG: InputLogEntry[] = [
   [0, 20],
-  [Button.Right, 60],
-  [Button.A, 2],
-  [Button.Right | Button.A, 20],
-  [0, 40],
-  [Button.Left, 50],
-  [Button.A, 2],
-  [0, 60],
+  [Button.Right | Button.B, 80],
+  [Button.B, 12],
+  [Button.A | Button.Right, 4],
+  [Button.Right | Button.B, 60],
+  [Button.Up | Button.B, 20],
+  [0, 30],
+  [Button.Right | Button.B, 74],
 ];
 
 interface Fixture {
@@ -36,8 +39,7 @@ interface Fixture {
 }
 
 const runAndSample = (): { hashes: number[]; finalSerializedLength: number } => {
-  const sim = new SplashSquadSim(SEED);
-  sim.joinPlayer(0);
+  const sim = new SplashSquadSim(SEED); // constructor joins slot 0 (solo)
   const hashes: number[] = [];
   let t = 0;
   for (const [bits, count] of LOG) {
