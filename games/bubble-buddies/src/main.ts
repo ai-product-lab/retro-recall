@@ -10,9 +10,12 @@ import { startLoop } from '@retro-recall/retrokit/loop';
 import { LEVEL_HEIGHT, LEVEL_WIDTH, TILE_SIZE } from './sim/constants';
 import { BubbleBuddiesSim } from './sim/sim';
 import { render } from './render/index';
-import { applyInputMode } from './shell/device';
-import { startLayout } from './shell/layout';
-import { createTouchControls, type TouchControls } from './shell/controls';
+import {
+  applyInputMode,
+  createTouchControls,
+  startLayout,
+  type TouchControls,
+} from '@retro-recall/shell';
 import { unlockAudio } from './shell/audio';
 import { offerInstall, registerServiceWorker } from './shell/pwa';
 

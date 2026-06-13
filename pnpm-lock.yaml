@@ -41,6 +41,9 @@ importers:
       '@retro-recall/retrokit':
         specifier: workspace:*
         version: link:../../packages/retrokit
+      '@retro-recall/shell':
+        specifier: workspace:*
+        version: link:../../packages/shell
     devDependencies:
       '@playwright/test':
         specifier: ^1.60.0
@@ -81,6 +84,12 @@ importers:
         version: link:../retrokit
 
   packages/retrokit: {}
+
+  packages/shell:
+    dependencies:
+      '@retro-recall/retrokit':
+        specifier: workspace:*
+        version: link:../retrokit
 
   site:
     devDependencies:

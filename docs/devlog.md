@@ -378,3 +378,15 @@ still owed, so the tile stays coming-soon. Flipping is a one-liner once it
 passes: set `status: 'live'` + `route: '/play/ramp-riders/'` on the registry
 entry. Tuning expected from the playtest — track lengths land ~20–26 s at full
 boost (short of the 45–90 s target; bump repeat counts), and landing feel.
+## 2026-06-13 — Shared shell package (ADR-010), the first Wave-B-driven seam
+
+Splash Squad surfaced the first real duplication of the factory era: it copied
+Bubble Buddies' layout engine + 8-way touch pad + device detection verbatim
+(correctly — a game worktree can't touch `packages/*`). So those three generic
+modules now live in `@retro-recall/shell`, extracted with `git mv` (history
+preserved) and consumed by Bubble Buddies; its local copies are gone. Per
+ADR-009 this lands on `main` as its own PR — the game worktrees rebase and
+switch their imports, dropping their local copies. Verified green: tsc, lint,
+full suite + BB e2e graph, both BB web entries build. Game-specific shell
+(audio/pwa/invite/emote) and the control CSS stay per-game for now; a shared CSS
+and an ADR-008 comms layer are the tracked next extractions.

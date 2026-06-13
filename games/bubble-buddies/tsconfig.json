@@ -10,6 +10,7 @@
   "references": [
     { "path": "../../packages/retrokit" },
     { "path": "../../packages/netcode" },
+    { "path": "../../packages/shell" },
     { "path": "../../packages/avatar" }
   ]
 }
