@@ -10,15 +10,14 @@ Principles, architecture, ADRs, branding. *This document set.*
 
 Monorepo scaffold; RetroKit core (sim loop, tiles, AABB physics, sprites, input, seeded RNG, state hashing); Bubble Buddies sim per `SPEC.md` — one player, placeholder sprites, 5 levels, 33 tests including golden replay fixture. See `docs/devlog.md`.
 
-## Phase 1.5 — Mobile pass (~1 week) ← CURRENT
+## Phase 2 — Online co-op ✅ (June 2026)
 
-iPhone-first PWA per ADR-007: dual-orientation touch layout — landscape = centered 4:3 playfield with d-pad/A-B in the pillarbox bars (NES style); portrait = playfield top, controller below (Game Boy style). Touch zones → existing input bitmask; zero sim/level changes. Manifest + service worker + "pin me" flow, safe-area layout, tap-to-start audio unlock. Deploy to Cloudflare Pages preview.
-**Demo:** Kevin's kid plays it from a home-screen icon, thumbs only.
+Durable Object room + WebSocket transport; server-authoritative sim with prediction/interpolation (ADR-003); room codes; invite page with call-first flow + emote wheel (ADR-008); 4-player sim per SPEC §11; determinism CI gates. Live at retro-recall.pages.dev (production CNAME pending `setup-dns.sh`). See `docs/devlog.md`.
 
-## Phase 2 — Online co-op (~2–3 weeks)
+## Phase 2.5 — Mobile first, for real (~1 week) ← CURRENT
 
-Durable Object room + WebSocket transport; server-authoritative sim with prediction/interpolation (ADR-003); room codes ("play with this link"); invite page with "start a FaceTime, then tap" flow + ping/emote wheel (ADR-008 Tiers 0–1); determinism CI tests; 2–4 players.
-**Demo:** Kevin and a friend pop the same enemy from different houses, talking on FaceTime.
+Phase 2 shipped a stopgap touch pad; on a real iPhone the game still assumes keyboards and desktop ratios. Full ADR-007 pass: dual-orientation layout — landscape = centered 4:3 playfield with d-pad/A-B in the pillarbox bars (NES style); portrait = playfield top, controller below (Game Boy style), live switch on rotate; correct integer scaling (no stretched ratios); input hints adapt to device (no keyboard legends on touch); manifest + service worker + "pin me" flow; safe-area layout; tap-to-start audio unlock. Zero sim/level changes.
+**Demo:** Kevin's kid plays a full co-op session from a home-screen icon, thumbs only.
 
 ## Phase 3 — Become the character (~2 weeks)
 

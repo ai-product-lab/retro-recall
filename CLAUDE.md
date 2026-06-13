@@ -30,6 +30,6 @@ A web arcade of original games inspired by NES classics, with online multiplayer
 
 ## Current phase
 
-**Phase 2 — Online co-op: built & deployed** (see `docs/devlog.md` 2026-06-12). Multiplayer sim per SPEC §11, DO room server + client prediction per `packages/netcode/SPEC.md`, invite flow + emote wheel, live on Cloudflare (Pages `retro-recall` + Worker `retro-recall-rooms`). Outstanding: the production CNAME (human-run `workers/rooms/scripts/setup-dns.sh`) and the two-phone playtest.
+**Phase 2.5 — Mobile first, for real.** Kickoff prompt: `docs/PHASE-2.5-KICKOFF.md`. Full ADR-007 pass (dual-orientation integer-scaled layouts, real touch controls, device-aware input hints, PWA manifest/service worker/install flow, audio unlock), replacing Phase 2's stopgap touch pad. Strictly shell-layer — the sim, levels, and golden replay fixtures must not change. Field report driving this: on iPhone, keyboard legends show and ratios are stretched.
 
-**Phase 1.5 — Mobile pass: still owed.** iPhone-first PWA per ADR-007 (orientation layouts, manifest/service worker, "Add to Home Screen", audio unlock). Phase 2 shipped only a stopgap touch pad (`src/shell/touch.ts`); the full pass remains. Strictly shell-layer — the sim, levels, and golden replay fixtures must not change.
+Phase 2 (online co-op) is built & deployed — see `docs/devlog.md` 2026-06-12. Still outstanding from it: the production CNAME (human-run `workers/rooms/scripts/setup-dns.sh`) and the two-phone playtest. Phase 3 (avatars, `docs/PHASE-3-KICKOFF.md`) is blocked on this phase.
