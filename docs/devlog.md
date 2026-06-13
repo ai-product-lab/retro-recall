@@ -247,3 +247,69 @@ merges). The site's play routes assume the games are co-deployed under
 server). Next: this branch merges to main first, then the three game worktrees
 (`game/puck-pals`, `game/splash-squad`, `game/ramp-riders`) start — each writes
 its SPEC for Kevin's approval before building.
+
+## 2026-06-12 — Wave B: Ramp Riders playable (game #4, the factory's first parallel build)
+
+First game built in a Stage-2 worktree (`game/ramp-riders`), additive-only — no
+`packages/*` edits. Empty `games/ramp-riders/` (just a BRIEF) to a playable
+1–4 online BMX racer in one session.
+
+**The factory report card (the point of ADR-009 Stage 2).**
+- `pnpm new-game ramp-riders` did all the wiring — sim/renderer/shell stubs,
+  test+fixture harness, play route, and the four additive seam edits (root
+  tsconfig, worker tsconfig/package.json/games.ts) — and it built + tested
+  green out of the box. Game #4's *infra* cost was ~zero, exactly the thesis.
+- **Scaffolder friction (two real ones, both worth fixing before games #3/#4):**
+  (1) it `die`s if `games/<id>/` already exists, but a pre-written `BRIEF.md`
+  lives there — so I had to stash the BRIEF, remove the dir, scaffold, restore.
+  (2) it blindly inserts a registry entry even when one exists (Ramp Riders had
+  a hand-authored coming-soon tile), producing a duplicate I deleted by hand.
+  Both argue for a `--brief-exists` / idempotent-by-id registry insert.
+- Where the time actually went: **not** scaffolding — the terrain/physics. The
+  rest (constants, tracks, renderer, touch, netcode client) flowed from the SPEC
+  and from copying Bubble Buddies' conventions.
+
+**The one hard problem: slopes + a tall hitbox.** RetroKit's `moveAABB` resolves
+X then Y with slope tiles non-solid in the X pass, and the rider hitbox is ~2
+tiles tall. First two terrain attempts wedged the rider dead on a ramp: any
+**solid tile at the cresting box's foot row** is a wall the X pass slams into.
+Fix was geometric, not engine (additive rule held): ramps are clean slope-tile
+diagonals with **empty interiors** (solid only at ground rows); no elevated
+solid decks. That cost us the landable tabletop and down-ramp landings — v1
+ramps are pure launch kickers with forgiving flat landings (`AIR_ROTATE = 0`, a
+level pop lands clean with no input — right call for kids). Landable decks /
+lean-to-match-downslope are a polish follow-up. Lesson for the other worktrees:
+*the slope core wants either a shorter hitbox or a slope-aware X pass before
+mounded terrain gets rich* — a candidate engine PR, not a game hack.
+
+**Determinism held.** No gameplay RNG (sprinklers are tick-periodic), riders
+update in slot order, finish ties break by slot. 9 sim unit tests + a full-race
+golden fixture (`replay-001.json`, regenerated intentionally). Bubble Buddies'
+fixtures stayed **byte-identical** through the build — additive-only, proven.
+
+**Netcode (mode per BRIEF: 1–4 race).** Server side was one line
+(`games.ts` factory, scaffolded). Client predicts only its own rider and
+interpolates rivals between snapshots (riders never collide, so divergence is
+invisible — the latency-tolerant mode the BRIEF promised). Disconnect coasts to
+a stop, no CPU takeover. Per-rider "junior boost" (youngest-only) needs a
+netcode join-metadata field `JoinMsg` lacks — parked; v1 ships the room-level
+rubber-band toggle instead (additive, tested).
+
+**Art / IP (ADR-005 pass).** Original placeholder art only: a chunky kid-on-BMX
+silhouette (wheels/frame/helmet), dirt-and-grass terrain, cones/sprinklers/hose/
+mud — generic backyard, no Nintendo/Konami/Taito names, characters, or trade
+dress in identifiers, assets, or copy. "Excite Bike" appears only as internal
+inspiration in the BRIEF, never in code. Avatar body rigs await `packages/avatar`
+landing on main (Phase 3, concurrent worktree) — renderer-only, sim is
+avatar-agnostic.
+
+**Verified.** typecheck + lint clean; full suite 105 + 8 rooms green; both
+routes build; headless-browser smoke of the solo race (renders, no console
+errors) and the online join overlay.
+
+**What's left before the registry flips coming-soon → live (gate per ADR-009):**
+CI green ✓ and IP review ✓ are done; the **two-phone playtest is human-run** and
+still owed, so the tile stays coming-soon. Flipping is a one-liner once it
+passes: set `status: 'live'` + `route: '/play/ramp-riders/'` on the registry
+entry. Tuning expected from the playtest — track lengths land ~20–26 s at full
+boost (short of the 45–90 s target; bump repeat counts), and landing feel.
