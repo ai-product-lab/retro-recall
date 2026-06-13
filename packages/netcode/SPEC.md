@@ -18,8 +18,12 @@ Implements ADR-003 (server-authoritative + prediction) on ADR-001's platform
 ## Message protocol (JSON v1; binary later only if measured necessary)
 
 Client → server: `join {roomCode, playerName, avatarId?, rejoinToken?}` ·
-`input {tick, bitmask}` (sent every client tick, redundantly including the
-last 3 ticks' bitmasks to ride over loss) · `emote {kind}` · `ping {t}`.
+`input {tick, bits, prev?}` (sent **only when the pad changes**, plus a
+keepalive every `INPUT_KEEPALIVE_TICKS` = 30 ticks; the server holds the last
+input across gap ticks, so a still player streams nothing — each inbound WS
+message bills as a Worker request, so per-tick streaming is what blew the Free
+cap. `prev` is optional packet-loss redundancy, needless on a reliable ordered
+WebSocket and omitted by the current client) · `emote {kind}` · `ping {t}`.
 
 Server → client: `welcome {slot, rejoinToken, snapshot, tick}` ·
 `snapshot {tick, state}` (full, sent at `SNAPSHOT_EVERY` = 3 ticks = 20 Hz) ·
@@ -31,6 +35,9 @@ Server → client: `welcome {slot, rejoinToken, snapshot, tick}` ·
 
 - Server applies each player's input at `max(receivedTick, serverTick)`;
   late inputs are applied at the current tick, never rewound (co-op forgives).
+  With no new input for a tick it re-applies the slot's last one (held input),
+  so send-on-change is byte-identical to streaming every tick — `null` only
+  before a slot's first input or while it's disconnected (sim grace despawns).
 - Client predicts only its own player entity; remote entities render
   interpolated between the last two snapshots (~50 ms display delay).
 - On snapshot: client rebases — restores server state, replays its own
@@ -49,7 +56,12 @@ Server → client: `welcome {slot, rejoinToken, snapshot, tick}` ·
   disconnect. The DO keeps the slot reserved that long.
 - **Disconnect:** missing inputs ⇒ sim's `DISCONNECT_GRACE_TICKS` handles
   despawn; the room marks the slot reserved and tells peers via `peerMeta`.
-- **Empty room:** hibernate; destroy state after code expiry.
+- **Idle reap:** the DO closes any connection silent past `IDLE_DISCONNECT_MS`
+  (30 s). Active clients send pings/keepalives well inside that, so only a
+  closed or backgrounded tab is reaped; the 600 s rejoin window outlives it.
+  This kills the forgotten-tab burn (an idle socket otherwise tickles the DO
+  forever) and lets an emptied room stop ticking.
+- **Empty room:** stop the tick driver; hibernate; destroy state after expiry.
 
 ## Emotes & pings (ADR-008 Tier 1)
 

@@ -204,6 +204,37 @@ describe('RoomCore inputs', () => {
     expect(h.sim().state.received[1]![0]).toBe(3);
   });
 
+  it('holds the last input across gap ticks (send-on-change clients)', () => {
+    const h = harness();
+    h.join('a');
+    // One input, then silence: the held value must keep being applied.
+    h.room.handleMessage('a', inputMsg(0, 5));
+    for (let i = 0; i < 4; i++) h.room.tickOnce();
+    expect(h.sim().state.received.map((r) => r[0])).toEqual([5, 5, 5, 5]);
+    // A new value replaces the held one and then holds in turn.
+    h.room.handleMessage('a', inputMsg(4, 0));
+    for (let i = 0; i < 3; i++) h.room.tickOnce();
+    expect(h.sim().state.received.slice(4).map((r) => r[0])).toEqual([0, 0, 0]);
+  });
+
+  it('send-on-change is determinism-equivalent to streaming every tick', () => {
+    // bits the player "holds" each tick (changes are sparse — the whole point).
+    const seq = [3, 3, 3, 3, 1, 1, 0, 0, 0, 4, 4, 4, 4, 4, 2];
+    const received = (mode: 'every-tick' | 'on-change'): (number | null)[] => {
+      const h = harness();
+      h.join('a');
+      let last = -1;
+      seq.forEach((bits, t) => {
+        if (mode === 'every-tick' || bits !== last) h.room.handleMessage('a', inputMsg(t, bits));
+        last = bits;
+        h.room.tickOnce();
+      });
+      return h.sim().state.received.map((r) => r[0]!);
+    };
+    expect(received('on-change')).toEqual(received('every-tick'));
+    expect(received('on-change')).toEqual(seq); // and it's exactly what was held
+  });
+
   it('a disconnected slot contributes null (sim grace handles despawn)', () => {
     const h = harness();
     h.join('a');

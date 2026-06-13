@@ -134,6 +134,49 @@ describe('join / play / snapshot flow', () => {
     expect(endState.players[0]!.x).toBe(startX + 12 * 288); // PLAYER_WALK_SPEED
   });
 
+  it('holds a held button across gap ticks (send-on-change clients)', async () => {
+    const { code } = await createRoom();
+    const a = await connect(code);
+    join(a.ws, 'holder');
+    await until(() => ofType(a.messages, 'welcome').length === 1);
+    const startX = (
+      JSON.parse(ofType(a.messages, 'welcome')[0]!['snapshot'] as string) as {
+        players: { x: number }[];
+      }
+    ).players[0]!.x;
+
+    const RIGHT = 1 << 1;
+    // A single input, as a send-on-change client emits it — the room must hold
+    // it for every following tick rather than reverting to "no input".
+    a.ws.send(JSON.stringify({ type: 'input', tick: 0, bits: RIGHT }));
+    a.ws.send(JSON.stringify({ type: 'ping', t: 1 }));
+    await until(() => ofType(a.messages, 'pong').length === 1);
+    const stub = await stubFor(code);
+    await stub.debugAdvance(12);
+    await until(() => ofType(a.messages, 'snapshot').length >= 4);
+    const endState = JSON.parse(ofType(a.messages, 'snapshot').at(-1)!['state'] as string) as {
+      players: { x: number }[];
+    };
+    expect(endState.players[0]!.x).toBe(startX + 12 * 288); // moved all 12 ticks
+  });
+
+  it('reaps connections that go silent past the idle window', async () => {
+    const { code } = await createRoom();
+    const a = await connect(code);
+    let aClosed = false;
+    a.ws.addEventListener('close', () => {
+      aClosed = true;
+    });
+    join(a.ws, 'idler');
+    await until(() => ofType(a.messages, 'welcome').length === 1);
+    const stub = await stubFor(code);
+
+    // Still connected right now; a sweep far in the future reaps it.
+    expect(await stub.debugReapIdle(Date.now())).toBe(true);
+    expect(await stub.debugReapIdle(Date.now() + 60_000)).toBe(false);
+    await until(() => aClosed);
+  });
+
   it('hashcheck arrives at tick 600 and matches the snapshot state', async () => {
     const { code } = await createRoom();
     const a = await connect(code);

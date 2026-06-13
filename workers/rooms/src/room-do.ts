@@ -14,6 +14,14 @@ const TICK_MS = 1000 / 60;
 const PERSIST_EVERY_TICKS = 600;
 /** Cap catch-up after a stall; beyond this the clock just jumps. */
 const MAX_CATCHUP_TICKS = 120;
+/**
+ * Drop a connection that has sent nothing for this long. Active clients send a
+ * ping (~1 s) and input keepalive (~0.5 s), so only a closed/backgrounded tab
+ * goes silent — this reclaims it (and lets an empty room stop ticking) instead
+ * of billing its idle socket forever. The rejoin window outlives it, so a
+ * returning player still resumes their slot.
+ */
+const IDLE_DISCONNECT_MS = 30_000;
 
 interface SocketAttachment {
   connId: string;
@@ -23,6 +31,8 @@ interface SocketAttachment {
 export class GameRoomDO extends DurableObject<Env> {
   private core: RoomCore | null = null;
   private sockets = new Map<string, WebSocket>();
+  /** connId → last wall-clock ms we heard from it (for idle disconnect). */
+  private lastSeenMs = new Map<string, number>();
   private interval: ReturnType<typeof setInterval> | null = null;
   private lastTickMs = 0;
   private ticksSincePersist = 0;
@@ -68,10 +78,12 @@ export class GameRoomDO extends DurableObject<Env> {
       persisted,
     );
     // Re-bind any sockets that survived hibernation or an eviction.
+    const now = Date.now();
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as SocketAttachment | null;
       if (!att) continue;
       this.sockets.set(att.connId, ws);
+      this.lastSeenMs.set(att.connId, now); // grace: don't reap on revival
       if (att.slot >= -1) this.core.attach(att.connId, att.slot);
     }
     return this.core;
@@ -110,6 +122,14 @@ export class GameRoomDO extends DurableObject<Env> {
     return core.tick;
   }
 
+  /** Test driver: run the idle sweep at a given wall-clock (pump() owns it in
+   *  production, but auto-tick is off under test). Returns remaining clients. */
+  async debugReapIdle(now: number): Promise<boolean> {
+    const core = await this.ensureCore();
+    this.reapIdle(core, now);
+    return core.hasClients();
+  }
+
   // --- WebSocket lifecycle (hibernation API) ---
 
   override async fetch(request: Request): Promise<Response> {
@@ -123,6 +143,7 @@ export class GameRoomDO extends DurableObject<Env> {
     server.serializeAttachment({ connId, slot: -2 } satisfies SocketAttachment);
     this.ctx.acceptWebSocket(server);
     this.sockets.set(connId, server);
+    this.lastSeenMs.set(connId, Date.now());
     await this.touchActivity();
     this.startTicking();
     return new Response(null, { status: 101, webSocket: client });
@@ -133,6 +154,7 @@ export class GameRoomDO extends DurableObject<Env> {
     const core = await this.ensureCore();
     const att = ws.deserializeAttachment() as SocketAttachment;
     if (!this.sockets.has(att.connId)) this.sockets.set(att.connId, ws);
+    this.lastSeenMs.set(att.connId, Date.now());
     core.handleMessage(att.connId, message);
     this.startTicking();
   }
@@ -141,6 +163,7 @@ export class GameRoomDO extends DurableObject<Env> {
     const core = await this.ensureCore();
     const att = ws.deserializeAttachment() as SocketAttachment;
     this.sockets.delete(att.connId);
+    this.lastSeenMs.delete(att.connId);
     core.handleClose(att.connId);
     await this.touchActivity();
     if (!core.hasClients()) {
@@ -178,6 +201,7 @@ export class GameRoomDO extends DurableObject<Env> {
     }
     this.lastTickMs += n * TICK_MS;
     for (let i = 0; i < n; i++) core.tickOnce();
+    this.reapIdle(core, now);
     this.ticksSincePersist += n;
     if (this.ticksSincePersist >= PERSIST_EVERY_TICKS) {
       this.ticksSincePersist = 0;
@@ -186,6 +210,22 @@ export class GameRoomDO extends DurableObject<Env> {
     if (!core.hasClients()) {
       this.stopTicking();
       await this.persist();
+    }
+  }
+
+  /** Close any connection that has gone silent past IDLE_DISCONNECT_MS. */
+  private reapIdle(core: RoomCore, now: number): void {
+    for (const [connId, seen] of this.lastSeenMs) {
+      if (now - seen < IDLE_DISCONNECT_MS) continue;
+      const ws = this.sockets.get(connId);
+      this.sockets.delete(connId);
+      this.lastSeenMs.delete(connId);
+      try {
+        ws?.close(4002, 'idle'); // server-initiated close may not fire the handler
+      } catch {
+        // Already gone.
+      }
+      core.handleClose(connId); // idempotent if the close handler also runs
     }
   }
 
