@@ -23,10 +23,14 @@ pnpm loadtest -- --url https://retro-recall.ruralrooted.com   # measure a live d
 Per-session cost is deterministic, so a small sample projects accurately — and
 keeping the sample under ~20 avoids tripping the Worker's own `CREATE_RATE`.
 
-## What we learned (2026-06-13)
+## ⚠️ Known flaw — this tool under-counts (fix before trusting it)
 
-A 2-player session costs **4 invocations + 1 KV write**. Headroom on Free:
-**~25,000 sessions/day** before the invocation cap, but only **~1,000/day**
-before the KV-write cap — so **new-rooms-per-day is the binding Free constraint**,
-not invocations. And the day's ~100k-invocation burn equals ~25,000 sessions —
-far beyond real traffic, i.e. **external probing, not gameplay**.
+This counts only **fetch** invocations (create + room-info + WS *upgrade*) and
+assumes WS *messages* are free. **They are not** — each inbound WebSocket message
+to `GameRoomDO` is a billed request, and the client streams one input message per
+tick (60 Hz). So the real cost of a ~25 s 2-player race is **~3,000 requests, not
+4**, and the true Free ceiling is **~30 sessions/day, not ~25,000**. The
+2026-06-13 burn was **self-inflicted 60 Hz input streaming**, not external
+probing. See `docs/HANDOFF-ws-input-burn.md`. This tool must be reworked to drive
+a session for N seconds and count messages = rate × duration before its
+projections mean anything.

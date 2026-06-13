@@ -51,6 +51,18 @@ so the prober can't immediately re-burn); authorize observability for the
 definitive burn breakdown. Staying on Free looks viable; Paid + a budget alert
 remains the documented fallback if real traffic ever approaches the caps.
 
+**CORRECTION (same day, after observability landed):** the "external probing"
+verdict above was **wrong**, and so was the load test. The burn was
+**self-inflicted**: the client sends an `input` WebSocket message every tick
+(60 Hz, unconditionally — `room-client.ts:139-157`), and **each inbound WS
+message to `GameRoomDO` bills as a request** (DO hibernation → per-message). Two
+players × 60 Hz for ~3 h (01:00–04:00 UTC, room `FGAH`) = ~800k requests → blew
+the 100k/day cap. The load test under-counted by ~750× because it assumed WS
+messages were free. The shipped guardrails (rate limits, `workers_dev:false`, KV
+throttle) are good hygiene but **don't address this** — the real fix is in the
+netcode (send-on-change + tab-hidden pause + DO idle cleanup). Full write-up and
+next-session plan: `docs/HANDOFF-ws-input-burn.md`.
+
 ## 2026-06-12 — Phase 1: Bubble Buddies is playable
 
 One session from empty repo to a playable game. What happened, in order:

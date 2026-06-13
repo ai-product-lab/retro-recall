@@ -151,8 +151,12 @@ function report({ players, sessions, invPerSession, kvPerSession }) {
   console.log(`\nFree-tier headroom: ~${invCeiling.toLocaleString()} sessions/day before the invocation cap,`);
   console.log(`                    ~${kvCeiling.toLocaleString()} sessions/day before the KV-write cap.`);
   console.log(`Binding constraint: ${binding} → that is the number to watch.\n`);
-  console.log(`Reality check: the 2026-06-13 burn was ~100k invocations — i.e. ~${Math.round(FREE.invocationsPerDay / invPerSession).toLocaleString()} sessions in a day.`);
-  console.log(`If real traffic is nowhere near that, the burn was external probing, not gameplay.\n`);
+  console.log(`⚠ CAVEAT: this counts only fetch invocations and IGNORES inbound WebSocket`);
+  console.log(`  messages, which the client streams at 60 Hz/player — each is a billed DO`);
+  console.log(`  request and DOMINATES the real cost (~3,000 req for a 25 s 2p race, not`);
+  console.log(`  ${invPerSession}). The 2026-06-13 burn was that streaming, not probing. The numbers`);
+  console.log(`  above are an UNDER-count until this tool measures messages. See`);
+  console.log(`  docs/HANDOFF-ws-input-burn.md.\n`);
 }
 
 async function main() {
