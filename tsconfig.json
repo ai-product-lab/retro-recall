@@ -8,6 +8,7 @@
     { "path": "games/bubble-buddies" },
     { "path": "games/splash-squad" },
     { "path": "games/ramp-riders" },
+    { "path": "games/puck-pals" },
     { "path": "site" },
     { "path": "workers/rooms" },
     { "path": "workers/avatar" }

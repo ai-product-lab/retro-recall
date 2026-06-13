@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0F1222" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Puck Pals" />
+    <title>Puck Pals — Play Together</title>
+  </head>
+  <body>
+    <!-- Online versus route (/play/puck-pals?room=CODE), hosted by the rooms
+         worker. Server-authoritative netcode per ADR-003 / SPEC.md §11. -->
+    <main id="stage">
+      <header id="hud-bar">
+        <span id="title">PUCK PALS</span>
+        <span class="room-chip">room <span class="room-code" id="room-code">····</span></span>
+        <button id="share" class="chip-btn">invite</button>
+        <div id="players"></div>
+        <div id="status">connecting…</div>
+      </header>
+
+      <canvas id="game"></canvas>
+
+      <p class="hint keys-only">
+        ↑↓←→ skate · <kbd>Z</kbd> pass · <kbd>X</kbd> shoot / check (hold to wind up) · <kbd>Enter</kbd> restart
+      </p>
+      <div id="controls"></div>
+    </main>
+
+    <div id="name-overlay">
+      <div class="overlay-card">
+        <div class="banner warn hidden" id="inapp-banner">
+          this chat app's built-in browser can't run games well —
+          <strong>open in your real browser</strong> to play.<br />
+          <button id="escape-browser" class="chip-btn" style="margin-top: 6px">Open in Safari</button>
+          <div id="escape-fallback" class="hidden" style="margin-top: 6px">
+            if nothing happened: tap <strong>···</strong> in the corner, then
+            <strong>Open in Browser</strong>
+          </div>
+        </div>
+
+        <div class="joining">joining room <span class="room-code" id="overlay-code"></span></div>
+        <div id="room-roster"></div>
+        <input id="name-input" maxlength="12" placeholder="your name" autocomplete="off" />
+        <button id="join-btn" class="chip-btn primary">JOIN GAME</button>
+
+        <p class="hint touch-only">
+          skate pad moves · <b class="glyph-a">PASS</b> · <b class="glyph-b">SHOOT</b> (hold to wind up) ·
+          <b class="glyph-b">CHECK</b> when you don't have the puck
+        </p>
+        <p class="hint keys-only">
+          ↑↓←→ skate · <kbd>Z</kbd> pass · <kbd>X</kbd> shoot / check
+        </p>
+        <p class="hint tip">📞 tip: hop on a call together — talking makes it twice the fun · empty seats play as CPU</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/play.ts"></script>
+  </body>
+</html>

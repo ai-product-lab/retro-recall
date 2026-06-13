@@ -59,7 +59,8 @@ export const GAMES: readonly GameEntry[] = [
     tagline: 'Backyard rink, family rivalry.',
     players: '1–4',
     mode: 'versus',
-    status: 'coming-soon',
+    status: 'live',
+    route: '/play/puck-pals/',
     accent: '#ffd166',
     art: 'puck',
     teaser: {
