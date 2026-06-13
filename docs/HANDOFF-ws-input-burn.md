@@ -3,6 +3,20 @@
 **Created 2026-06-13** at the close of the delivery-pipeline session. Start the
 next session here.
 
+> **RESOLVED 2026-06-13** (next session). Fixes (1) send-on-change + held input
+> and (3) DO idle-reap shipped, engine-first per ADR-009, determinism-validated
+> (replay fixtures untouched + green, two-client gate zero desyncs). See the
+> devlog entry "Killing the real burn: send-on-change input." Fix (2) Page
+> Visibility pause was **not needed** — the DO idle-reap (30 s) covers the
+> backgrounded/forgotten-tab case server-side without touching the game shells.
+> `tools/loadtest/` was **reworked** to count inbound WS messages (it now
+> replays the real send-on-change cadence): a 2p×30s active session measures
+> **~342 requests** (was mis-counted as 4), ~11× cheaper than the old 60 Hz
+> stream, ~292 active sessions/day of Free headroom, forgotten tab capped at
+> ~90 requests by the reaper.
+> **Only open item:** re-pull Cloudflare observability after a real 2-phone
+> session (post quota reset, ~00:00 UTC 2026-06-14) to confirm the live rate.
+
 ## TL;DR
 
 The 2026-06-13 Workers Free-tier exhaustion (`429 / error 1027`) was **not

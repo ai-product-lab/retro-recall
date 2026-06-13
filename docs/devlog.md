@@ -3,6 +3,59 @@
 Raw, dated notes after each significant milestone — source material for the
 Field Guide.
 
+## 2026-06-13 — Killing the real burn: send-on-change input (netcode)
+
+Closed the actual Free-tier blocker from `HANDOFF-ws-input-burn.md`: the burn
+was **self-inflicted**, not probing. The client streamed an `input` WS message
+**every tick (60 Hz), unconditionally**, and on a hibernating Durable Object
+**each inbound message bills as a request** — two players ≈ 120 req/s, one
+forgotten tab = millions/day. The load test from earlier today had it wrong:
+it counted only the ~4 fetches/session and assumed WS messages "ride for free."
+
+**The fix is in the netcode, engine-first (ADR-009), and it's determinism-safe:**
+
+- **Client sends input only when the pad changes**, plus a keepalive every
+  `INPUT_KEEPALIVE_TICKS` = 30 ticks (`room-client.ts`). Dropped the
+  `prev[t-1..t-3]` loss-redundancy — pointless on a reliable ordered WebSocket.
+  Still records every tick locally (prediction replay needs the full history);
+  only the *network send* is gated.
+- **Server holds the last input across gap ticks** (`core.ts` `takeInput` +
+  `heldInput[]`). A player holding Right who stops sending keeps moving. `null`
+  only before a slot's first input or while disconnected — so the change is
+  byte-identical to streaming every tick for an already-active player. This was
+  the determinism-sensitive part.
+- **DO idle-reap** (`room-do.ts`): close any connection silent past
+  `IDLE_DISCONNECT_MS` = 30 s; kills the forgotten/backgrounded-tab case at the
+  server, and lets an emptied room stop ticking. Rejoin window (600 s) outlives
+  it, so coming back still resumes your slot.
+
+**Why the sim/replay fixtures didn't need regenerating** (the handoff guessed
+they might): the game replay fixtures feed bits *directly* to `sim.tick([bits])`
+— they never touch the wire protocol. The per-tick input contract the sim sees
+is unchanged (the server reconstructs the identical stream via held input), so
+all fixtures stayed green — that's the validation, not a regen.
+
+**Validation.** New `room-core` test proves send-on-change is byte-identical to
+every-tick feeding (and that held input is exactly what was held); new
+`room-client` test proves a held button emits a handful of messages over 90
+ticks instead of 90, carries no `prev`, and spectators send nothing; the
+two-headless-clients gate now also asserts inputs stay well under one-per-tick
+across a 2000-tick session with delay/disconnect/rejoin and **zero desyncs**;
+DO integration tests cover held-input over real WebSockets and the idle reap.
+176 tests green; typecheck + lint clean.
+
+**Capacity, corrected — and now measured.** Reworked `tools/loadtest/` to count
+the thing that actually bills: it replays the real send-on-change cadence
+(input-on-change + keepalive + ping) for a modeled N-second session, sends it
+for real, and counts inbound WS messages alongside fetch invocations. A 2p×30s
+active session (~4 pad changes/s/player) measures **~342 billable requests**
+(the old tool reported 4) — **~11× cheaper** than the 60 Hz stream's ~3,666.
+Free headroom: **~292 active sessions/day** (binding constraint is now correctly
+inbound requests, not KV); a forgotten tab costs ~90 requests then the reaper
+cuts it. Hibernation stays the right call and Free is viable for friends-scale
+play. Only open item: re-pull Cloudflare observability after a real 2-phone
+session once the quota resets (~00:00 UTC 2026-06-14).
+
 ## 2026-06-13 — Delivery pipeline + staying on the Free tier (the day prod bit back)
 
 Deploying Ramp Riders, the rooms Worker started returning `429 / error 1027`:
