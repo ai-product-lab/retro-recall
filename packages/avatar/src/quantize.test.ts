@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { PALETTE_P1 } from './palette.js';
 import { decodePng, encodePng } from './png.js';
-import { downscaleSquare, headToRgba, nearestIndex, quantizeToHead } from './quantize.js';
+import { downscaleSquare, headToRgba, matteByBorderFill, nearestIndex, quantizeToHead } from './quantize.js';
 import type { RgbaImage } from './types.js';
+
+/** Read the alpha of pixel (x, y). */
+const alphaAt = (img: RgbaImage, x: number, y: number): number => img.data[(y * img.width + x) * 4 + 3]!;
+
+/** Paint a filled rect of one RGB into an existing image. */
+function paint(img: RgbaImage, x0: number, y0: number, w: number, h: number, r: number, g: number, b: number): void {
+  for (let y = y0; y < y0 + h; y++) {
+    for (let x = x0; x < x0 + w; x++) {
+      const s = (y * img.width + x) * 4;
+      img.data[s] = r;
+      img.data[s + 1] = g;
+      img.data[s + 2] = b;
+      img.data[s + 3] = 255;
+    }
+  }
+}
 
 /** Fill a W×H image with one solid RGBA. */
 function solid(width: number, height: number, r: number, g: number, b: number, a = 255): RgbaImage {
@@ -56,6 +72,48 @@ describe('downscaleSquare', () => {
     expect(out.width).toBe(24);
     expect(out.data[3]).toBe(255);
     expect([out.data[0], out.data[1], out.data[2]]).toEqual([255, 209, 102]);
+  });
+});
+
+describe('matteByBorderFill', () => {
+  it('knocks out a solid background, keeping the foreground opaque', () => {
+    // Magenta key with a coral block in the middle (the "head").
+    const img = solid(16, 16, 255, 0, 255);
+    paint(img, 4, 4, 8, 8, 255, 107, 107);
+    const out = matteByBorderFill(img);
+    expect(alphaAt(out, 0, 0)).toBe(0); // corner background → transparent
+    expect(alphaAt(out, 8, 8)).toBe(255); // foreground center → kept
+  });
+
+  it('only removes the border-connected region (interior key pixels survive)', () => {
+    // A foreground that fully encloses a single background-colored pixel.
+    const img = solid(16, 16, 255, 0, 255);
+    paint(img, 3, 3, 10, 10, 255, 107, 107); // coral block
+    paint(img, 8, 8, 1, 1, 255, 0, 255); // a magenta pixel trapped inside
+    const out = matteByBorderFill(img);
+    expect(alphaAt(out, 0, 0)).toBe(0); // outside background → gone
+    expect(alphaAt(out, 8, 8)).toBe(255); // enclosed key pixel → protected
+  });
+
+  it('is a no-op when the border is already transparent', () => {
+    const img = solid(8, 8, 61, 245, 166, 0);
+    const out = matteByBorderFill(img);
+    expect(out.data).toEqual(img.data);
+  });
+
+  it('leaves the foreground fully opaque after quantizing a matted head', () => {
+    const img = solid(48, 48, 255, 0, 255);
+    paint(img, 12, 12, 24, 24, 255, 209, 102); // arcade-yellow head
+    const head = quantizeToHead(matteByBorderFill(img));
+    const rgba = headToRgba(head);
+    let transparent = 0;
+    let opaque = 0;
+    for (let i = 3; i < rgba.data.length; i += 4) {
+      if (rgba.data[i] === 0) transparent++;
+      else opaque++;
+    }
+    expect(transparent).toBeGreaterThan(0); // background was keyed out
+    expect(opaque).toBeGreaterThan(0); // head survived
   });
 });
 

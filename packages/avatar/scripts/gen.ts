@@ -28,6 +28,7 @@ import {
   STYLE_PROMPT,
   STYLE_PROMPT_VERSION,
   headToRgba,
+  matteByBorderFill,
   parseModerationVerdict,
   quantizeToHead,
   upscale,
@@ -107,7 +108,7 @@ async function processPhoto(apiKey: string, path: string): Promise<void> {
   const outV = await moderate(apiKey, OUTPUT_MODERATION_PROMPT, raw);
   process.stdout.write(`  output moderation: ${outV.safe ? 'OK' : 'REJECT'} — ${outV.reason || 'ok'}\n`);
 
-  const head = quantizeToHead(await toRgbaImage(raw));
+  const head = quantizeToHead(matteByBorderFill(await toRgbaImage(raw)));
   const headRgba = headToRgba(head);
 
   await writeFile(join(OUT_DIR, `${name}.raw.png`), raw);

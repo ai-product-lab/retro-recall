@@ -20,6 +20,7 @@ import {
   decodePng,
   encodePng,
   headToRgba,
+  matteByBorderFill,
   quantizeToHead,
   type AvatarResult,
   type FallbackReason,
@@ -58,7 +59,9 @@ export async function generateAvatar(env: Env, photo: Uint8Array, photoMime: str
     const outVerdict = await moderate(key, OUTPUT_MODERATION_PROMPT, generated.bytes, generated.mime);
     if (!outVerdict.safe) return { ok: false, reason: 'moderation', detail: `output: ${outVerdict.reason}` };
 
-    const decoded = await decodePng(generated.bytes);
+    // Matte out the (opaque) background before downscaling — models ignore the
+    // "transparent background" instruction, so we key it ourselves.
+    const decoded = matteByBorderFill(await decodePng(generated.bytes));
     const headPng = await encodePng(headToRgba(quantizeToHead(decoded)));
 
     const avatarId = await contentId(headPng);

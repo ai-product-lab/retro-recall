@@ -13,7 +13,7 @@
  * first principles instead of by reference.
  */
 
-export const STYLE_PROMPT_VERSION = 'v1';
+export const STYLE_PROMPT_VERSION = 'v2';
 
 /** The 15 opaque house colors, as hints to bias the model toward our palette so
  *  quantization is near-lossless. Mirrors PALETTE_P1 (keep in sync). */
@@ -35,15 +35,15 @@ export const STYLE_PROMPT = [
   'Keep only a friendly *impression* of the person: their hair color and rough hairstyle, skin warmth, glasses if present, and a happy expression. Do NOT make a realistic portrait and do NOT make it recognizable as the specific real person — stylize heavily into a rounded, big-eyed creature.',
   '',
   'Composition: just the HEAD and face, centered, facing the camera, friendly smile, looking slightly up. Big expressive eyes. Chunky, readable shapes — this will be shrunk to a tiny game sprite, so no fine detail.',
-  'Art style: 8-bit / 16-bit console pixel art. Bold 1px dark outline around the whole head. Flat cel shading with at most a few tones per color. Limited palette, biased toward these colors: ' +
+  'Art style: 8-bit / 16-bit console pixel art. Bold 1px dark outline around the whole head. Flat cel shading with at most a few tones per color. Bright, warm, inviting. Limited palette, biased toward these colors: ' +
     PALETTE_HINT +
-    '. Soft "CRT glow in a modern room" vibe — bright, warm, inviting.',
-  'Canvas: 64x64 pixels, the creature head filling most of the frame, on a FULLY TRANSPARENT background (alpha). No background scene, no ground, no text, no frame, no drop shadow on the floor.',
+    '.',
+  'Canvas: 64x64 pixels, the creature head filling most of the frame. Background: a FLAT, SOLID, UNIFORM pure-magenta fill (#FF00FF) behind the head — exactly that one color edge to edge, with NO gradient, NO glow, NO halo, NO outer ring, NO drop shadow, and no background scene, ground, text, or frame. The magenta is a chroma key we remove; nothing magenta may appear on the creature itself.',
   '',
   'HARD CONSTRAINTS (must all hold):',
   '- Must be an ORIGINAL creature design. Do NOT resemble, imitate, or reference any existing video-game character, cartoon mascot, brand, or franchise. No logos, no trademarks, no copyrighted characters.',
   '- Family-friendly and kid-safe: no gore, no weapons, no scary or sexual content, no text or words.',
-  '- One single creature head only. Transparent background. Output as a PNG image.',
+  '- One single creature head only, tightly framed, on the flat magenta key. No glow or ring around the head. Output as a PNG image.',
 ].join('\n');
 
 /**

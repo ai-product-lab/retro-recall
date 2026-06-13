@@ -72,6 +72,85 @@ export function downscaleSquare(img: RgbaImage, out: number): RgbaImage {
   return { width: out, height: out, data: dst };
 }
 
+/**
+ * Knock out the background by a border flood-fill, returning a copy with the
+ * connected edge region made transparent.
+ *
+ * Why this exists: image models reliably *ignore* "transparent background" and
+ * hand back an opaque fill (a flat color, or the keyed background the style
+ * prompt asks for). So we don't trust alpha — we matte. Starting from the cell
+ * edges, any pixel whose color is within `tolerance` of the sampled background
+ * (or already transparent) joins the matte and spreads to its neighbors; the
+ * head's dark outline is far from the background color, so the fill stops there.
+ *
+ * Border-connected only: a background-colored pixel *inside* the face (a glint,
+ * a tooth) is never reached, so the face stays intact. Pure and deterministic —
+ * the matte is part of what the content hash commits to.
+ */
+export function matteByBorderFill(img: RgbaImage, tolerance = 64): RgbaImage {
+  const { width: W, height: H, data } = img;
+  const out = new Uint8Array(data);
+
+  // Background color := average of the opaque corners. If the border is already
+  // transparent there is nothing to key — return the copy unchanged.
+  let br = 0;
+  let bg = 0;
+  let bb = 0;
+  let n = 0;
+  for (const [cx, cy] of [[0, 0], [W - 1, 0], [0, H - 1], [W - 1, H - 1]] as const) {
+    const s = (cy * W + cx) * 4;
+    if (data[s + 3]! >= ALPHA_CUTOFF) {
+      br += data[s]!;
+      bg += data[s + 1]!;
+      bb += data[s + 2]!;
+      n++;
+    }
+  }
+  if (n === 0) return { width: W, height: H, data: out };
+  br /= n;
+  bg /= n;
+  bb /= n;
+  const tol2 = tolerance * tolerance;
+
+  const isBg = (p: number): boolean => {
+    const s = p * 4;
+    if (data[s + 3]! < ALPHA_CUTOFF) return true;
+    const dr = data[s]! - br;
+    const dg = data[s + 1]! - bg;
+    const db = data[s + 2]! - bb;
+    return dr * dr + dg * dg + db * db <= tol2;
+  };
+
+  const seen = new Uint8Array(W * H);
+  const stack: number[] = [];
+  const visit = (x: number, y: number): void => {
+    if (x < 0 || x >= W || y < 0 || y >= H) return;
+    const p = y * W + x;
+    if (seen[p]) return;
+    seen[p] = 1;
+    if (isBg(p)) stack.push(p);
+  };
+  for (let x = 0; x < W; x++) {
+    visit(x, 0);
+    visit(x, H - 1);
+  }
+  for (let y = 0; y < H; y++) {
+    visit(0, y);
+    visit(W - 1, y);
+  }
+  while (stack.length > 0) {
+    const p = stack.pop()!;
+    out[p * 4 + 3] = 0;
+    const x = p % W;
+    const y = (p / W) | 0;
+    visit(x + 1, y);
+    visit(x - 1, y);
+    visit(x, y + 1);
+    visit(x, y - 1);
+  }
+  return { width: W, height: H, data: out };
+}
+
 /** Downscale to HEAD_SIZE and snap every pixel to PALETTE_P1. Pixels below the
  *  alpha cutoff become index 0 (transparent). */
 export function quantizeToHead(img: RgbaImage, size = HEAD_SIZE): AvatarHead {
