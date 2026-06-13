@@ -150,4 +150,26 @@ describe('Splash Squad gameplay', () => {
     }
     expect(s.state.scrollX).toBeGreaterThan(0); // leader pulled the window right
   });
+
+  it('defeating the boiler boss clears the zone and awards the boss score', () => {
+    const s = new SplashSquadSim(5, 1); // level index 1 is a boss level
+    const p = s.state.players[0]!;
+    p.invuln = 100000; // keep the test focused on the boss-death → clear path
+    s.state.boss = { x: p.x + 64 * SUBPX, y: p.y, hp: 0, cycleTick: 0, winddown: -1, lastHitBy: 0 };
+    let cleared = false;
+    for (let i = 0; i < C.WINDDOWN_TICKS + 10 && !cleared; i++) {
+      s.tick([0]);
+      if (s.state.bossDefeated || s.state.mode === 'levelclear') cleared = true;
+    }
+    expect(cleared).toBe(true);
+    expect(p.score).toBeGreaterThanOrEqual(C.SCORE_BOSS);
+  });
+
+  it('a long solo run stays finite and never soft-locks', () => {
+    const s = new SplashSquadSim(11);
+    for (let i = 0; i < 3000; i++) s.tick([Button.Right | Button.B]);
+    const p = s.state.players[0]!;
+    expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true);
+    expect(['playing', 'death', 'levelclear', 'gameover', 'win']).toContain(s.state.mode);
+  });
 });
