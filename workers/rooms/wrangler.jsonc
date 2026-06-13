@@ -25,7 +25,9 @@
   "vars": {
     "PUBLIC_ORIGIN": "https://retro-recall.ruralrooted.com"
   },
-  // Same-origin API/WS on the production hostname (Pages serves the site).
+  // Same-origin API/WS on the production hostname (Pages serves the site). A
+  // future consolidation onto Workers Static Assets is proposed in ADR-011 but
+  // deferred until asset-hit billing is verified in a real deployment.
   "routes": [
     { "pattern": "retro-recall.ruralrooted.com/api/*", "zone_name": "ruralrooted.com" },
     { "pattern": "retro-recall.ruralrooted.com/room/*", "zone_name": "ruralrooted.com" }
