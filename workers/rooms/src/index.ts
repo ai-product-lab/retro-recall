@@ -9,6 +9,7 @@
  * game client talks same-origin; permissive CORS keeps local dev easy.
  */
 import { ROOM_TTL_S, isRoomCode, makeRoomCode } from '@retro-recall/netcode';
+import { DEFAULT_GAME, isKnownGame } from './games';
 import { GameRoomDO } from './room-do';
 
 export { GameRoomDO };
@@ -32,7 +33,16 @@ const json = (data: unknown, status = 200): Response =>
     headers: { 'Content-Type': 'application/json', ...CORS },
   });
 
-async function createRoom(env: Env): Promise<Response> {
+async function createRoom(env: Env, request: Request): Promise<Response> {
+  // Optional { game } selects which game the room hosts; defaults to keep the
+  // single-game behavior (and URL) byte-identical.
+  let game = DEFAULT_GAME;
+  if (request.headers.get('Content-Type')?.includes('application/json')) {
+    const body = (await request.json().catch(() => ({}))) as { game?: unknown };
+    if (typeof body.game === 'string') game = body.game;
+  }
+  if (!isKnownGame(game)) return json({ error: `unknown game '${game}'` }, 400);
+
   const random = (): number => crypto.getRandomValues(new Uint32Array(1))[0]! / 2 ** 32;
   let code = '';
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -44,10 +54,10 @@ async function createRoom(env: Env): Promise<Response> {
 
   const id = env.GAME_ROOM.newUniqueId();
   await env.ROOMS.put(code, id.toString(), { expirationTtl: ROOM_TTL_S });
-  await env.GAME_ROOM.get(id).init(code);
+  await env.GAME_ROOM.get(id).init(code, game);
   return json({
     code,
-    url: `${env.PUBLIC_ORIGIN}/play/bubble-buddies?room=${code}`,
+    url: `${env.PUBLIC_ORIGIN}/play/${game}?room=${code}`,
   });
 }
 
@@ -66,7 +76,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
     if (url.pathname === '/api/rooms' && request.method === 'POST') {
-      return createRoom(env);
+      return createRoom(env, request);
     }
 
     const info = /^\/api\/rooms\/([A-Z]{4})$/.exec(url.pathname);

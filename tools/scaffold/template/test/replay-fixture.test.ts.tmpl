@@ -1,0 +1,72 @@
+/**
+ * Replay regression fixture (the CI determinism gate) — scaffolded by
+ * `pnpm new-game`. The fixture is an input log plus state hashes sampled during
+ * playback. On the first run (no fixture yet) it writes one — commit it. If a
+ * later change alters gameplay this fails; fix the regression, or regenerate
+ * intentionally with `REGEN_FIXTURES=1 pnpm test` and review the diff.
+ */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { Button, type InputLogEntry } from '@retro-recall/retrokit/sim';
+import { __CLASS__Sim } from '../src/sim/sim';
+
+const FIXTURE_PATH = fileURLToPath(new URL('./fixtures/replay-001.json', import.meta.url));
+const SEED = 0xc0ffee;
+const HASH_EVERY = 60; // sample every second of sim time
+
+const LOG: InputLogEntry[] = [
+  [0, 20],
+  [Button.Right, 60],
+  [Button.A, 2],
+  [Button.Right | Button.A, 20],
+  [0, 40],
+  [Button.Left, 50],
+  [Button.A, 2],
+  [0, 60],
+];
+
+interface Fixture {
+  seed: number;
+  hashEvery: number;
+  log: InputLogEntry[];
+  hashes: number[];
+  finalSerializedLength: number;
+}
+
+const runAndSample = (): { hashes: number[]; finalSerializedLength: number } => {
+  const sim = new __CLASS__Sim(SEED);
+  sim.joinPlayer(0);
+  const hashes: number[] = [];
+  let t = 0;
+  for (const [bits, count] of LOG) {
+    for (let i = 0; i < count; i++) {
+      sim.tick([bits]);
+      t++;
+      if (t % HASH_EVERY === 0) hashes.push(sim.hash());
+    }
+  }
+  hashes.push(sim.hash());
+  return { hashes, finalSerializedLength: sim.serialize().length };
+};
+
+describe('__NAME__ replay fixture', () => {
+  it('replaying the recorded log reproduces the recorded state hashes', () => {
+    const actual = runAndSample();
+
+    if (!existsSync(FIXTURE_PATH) || process.env['REGEN_FIXTURES'] === '1') {
+      mkdirSync(dirname(FIXTURE_PATH), { recursive: true });
+      const fixture: Fixture = { seed: SEED, hashEvery: HASH_EVERY, log: LOG, ...actual };
+      writeFileSync(FIXTURE_PATH, JSON.stringify(fixture, null, 2) + '\n');
+      console.warn('[replay-fixture] wrote ' + FIXTURE_PATH + ' — commit it');
+      return;
+    }
+
+    const fixture = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as Fixture;
+    expect(fixture.seed).toBe(SEED);
+    expect(fixture.log).toEqual(LOG);
+    expect(actual.hashes).toEqual(fixture.hashes);
+    expect(actual.finalSerializedLength).toBe(fixture.finalSerializedLength);
+  });
+});

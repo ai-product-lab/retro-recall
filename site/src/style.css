@@ -1,0 +1,292 @@
+/*
+ * Retro Recall arcade shell (ADR-007 mobile-first). "CRT glow in a modern
+ * room" (branding/BRAND.md): pixel-art thumbnails in clean, generously-spaced
+ * modern cards. Palette: Midnight #0F1222, Phosphor #3DF5A6, Bubble #4CC9F0,
+ * Cabinet #FF6B6B, Star #FFD166, Paper #F2EFE9. No scanline filters on text.
+ */
+
+:root {
+  color-scheme: dark;
+  --midnight: #0f1222;
+  --midnight-raised: #1a1f38;
+  --phosphor: #3df5a6;
+  --bubble: #4cc9f0;
+  --cabinet: #ff6b6b;
+  --star: #ffd166;
+  --paper: #f2efe9;
+  --dim: #8a8fa3;
+  --line: #2a3158;
+  --pixel: ui-monospace, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--midnight);
+  color: var(--paper);
+  font-family: var(--pixel);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+  /* Radial "CRT glow" wash behind the arcade — subtle, never on text. */
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(61, 245, 166, 0.08), transparent 60%),
+    var(--midnight);
+}
+
+img, svg { display: block; }
+
+/* --- Shell layout, safe-area aware --- */
+
+#shell {
+  max-width: 920px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding:
+    calc(env(safe-area-inset-top) + 14px)
+    calc(env(safe-area-inset-right) + 14px)
+    calc(env(safe-area-inset-bottom) + 14px)
+    calc(env(safe-area-inset-left) + 14px);
+  gap: 18px;
+}
+
+#masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.brand { display: flex; flex-direction: column; gap: 2px; }
+
+.wordmark {
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  color: var(--paper);
+  position: relative;
+}
+/* The pixel bubble standing in for the second R's counter (brand motif). */
+.brand-bubble {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--bubble);
+  box-shadow: 0 0 6px var(--bubble);
+  vertical-align: middle;
+}
+.tagline { font-size: 12px; color: var(--dim); letter-spacing: 1px; }
+
+main { flex: 1; }
+
+/* --- Tile grid: 2-up on phones, up to 4-up wide (auto-fit reflow) --- */
+
+#game-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, 1fr);
+}
+@media (min-width: 560px) {
+  #game-grid { grid-template-columns: repeat(4, 1fr); }
+}
+/* Narrow landscape phones: keep 2-up rather than cramming 4. */
+@media (max-width: 559px) and (orientation: landscape) {
+  #game-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* --- Tile --- */
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px; /* touch target floor; real height is far larger */
+  padding: 16px 12px 14px;
+  background: var(--midnight-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--paper);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 90ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.tile.is-live { border-color: color-mix(in srgb, var(--phosphor) 40%, var(--line)); }
+.tile.is-live:hover { box-shadow: 0 0 0 1px var(--phosphor), 0 0 18px rgba(61, 245, 166, 0.25); }
+.tile:active { transform: scale(0.96); } /* the one allowed indulgence: a pop */
+.tile.is-soon { opacity: 0.62; }
+.tile.is-soon:hover { opacity: 0.85; }
+
+.tile-art {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--midnight));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.tile-art svg { image-rendering: pixelated; width: 56px; height: 56px; }
+
+.tile-name {
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  line-height: 1.2;
+}
+.tile-meta { font-size: 10px; color: var(--dim); letter-spacing: 1px; }
+
+.tile-cta { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
+.tile-cta.play { color: var(--phosphor); }
+.tile-cta.soon { color: var(--star); }
+
+.tile-ribbon {
+  position: absolute;
+  top: 8px;
+  right: -2px;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: var(--midnight);
+  background: var(--star);
+  padding: 2px 8px;
+  border-radius: 4px 0 0 4px;
+}
+
+/* --- Shared chip button --- */
+
+.chip-btn {
+  background: var(--midnight-raised);
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 9px 14px;
+  cursor: pointer;
+  min-height: 40px;
+}
+.chip-btn:active { transform: scale(0.96); }
+.chip-btn.primary {
+  background: var(--phosphor);
+  border-color: var(--phosphor);
+  color: #06281a;
+  font-weight: bold;
+}
+
+/* --- Footer --- */
+
+#colophon {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--dim);
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.guide-link { color: var(--bubble); text-decoration: none; }
+.guide-link:hover { text-decoration: underline; }
+
+/* --- Modal sheet (peek + join) --- */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 9, 20, 0.72);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+@media (min-width: 560px) {
+  .sheet-overlay { align-items: center; padding: 16px; }
+}
+
+.sheet {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  background: var(--midnight-raised);
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 0 0;
+  padding: 22px 18px calc(env(safe-area-inset-bottom) + 22px);
+}
+@media (min-width: 560px) { .sheet { border-radius: 16px; } }
+
+.sheet-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--midnight);
+  color: var(--dim);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* "Pop" entrance (bubble motif), respecting reduced-motion. */
+.pop-in { animation: pop-in 160ms ease-out; }
+@keyframes pop-in {
+  from { transform: translateY(12px) scale(0.97); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-in { animation: none; }
+  .tile { transition: none; }
+}
+
+/* --- Peek content --- */
+
+.peek { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.peek-art {
+  width: 96px; height: 96px; border-radius: 12px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 16%, var(--midnight));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.peek-art svg { image-rendering: pixelated; width: 84px; height: 84px; }
+.peek-title { margin: 4px 0 0; font-size: 18px; letter-spacing: 2px; color: var(--paper); }
+.peek-badge { margin: 0; font-size: 10px; letter-spacing: 1px; color: var(--star); }
+.peek-twist { margin: 6px 4px 0; font-size: 13px; line-height: 1.5; color: var(--paper); }
+.peek-notes {
+  margin: 4px 0 0; padding-left: 18px; text-align: left;
+  font-size: 12px; line-height: 1.6; color: var(--dim); align-self: stretch;
+}
+.peek-foot { margin: 10px 0 0; font-size: 11px; color: var(--bubble); }
+
+/* --- Join form --- */
+
+.join-form { display: flex; flex-direction: column; gap: 8px; }
+.join-row { display: flex; gap: 10px; }
+.join-input {
+  flex: 1;
+  background: var(--midnight);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--paper);
+  font-family: inherit;
+  font-size: 22px;
+  letter-spacing: 8px;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 10px;
+  min-height: 48px;
+}
+.join-input:focus { outline: none; border-color: var(--phosphor); }
+.join-status { margin: 2px 0 0; font-size: 12px; color: var(--cabinet); min-height: 16px; }

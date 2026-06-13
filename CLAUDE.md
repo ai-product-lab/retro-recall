@@ -30,8 +30,10 @@ A web arcade of original games inspired by NES classics, with online multiplayer
 
 ## Current phase
 
-**Phase 2.5 — Mobile first, for real: built & deployed**, pending Kevin's on-phone playtest to close (`docs/devlog.md` 2026-06-12 Phase 2.5). The full ADR-007 pass landed: integer device-pixel scaled dual-orientation layouts, real touch controls, device-aware hints, PWA (manifest / service worker / pin-me / audio unlock), and the join-surfaces rework (code-entry-first home; netcode SPEC "Join surfaces"). Viewport gate: `pnpm --filter @retro-recall/bubble-buddies test:e2e` (Playwright; not wired into CI).
+**Phase 4a — the Library (ADR-009 Stage 1): merged to `main`.** Built the shared surface the parallel game worktrees share, in order: (1) RetroKit engine extensions — camera, big maps, 22.5°/45° slope tiles, camera-triggered spawn regions — each proven additive by Bubble Buddies' replay fixtures staying byte-identical; (2) the game registry (`site/registry.ts`) + mobile-first library home (Bubble Buddies live, the other three coming-soon with peek teasers); (3) the `pnpm new-game <id>` scaffolder (proven with a throwaway `demo-game`, then removed cleanly). Full suite 103 green; see `docs/devlog.md` 2026-06-12 Phase 4a and `docs/PHASE-4-KICKOFF.md`.
+
+In flight alongside this (ADR-009 Wave A): **Phase 3 avatars** in the `phase/avatars` worktree (`docs/PHASE-3-KICKOFF.md`).
+
+**Next — Wave B:** three concurrent game worktrees (`game/puck-pals`, `game/splash-squad`, `game/ramp-riders` — `games/*/BRIEF.md`), each additive-only, each writing its `SPEC.md` for Kevin's approval before implementing (ADR-009 Stage 2).
 
 Still outstanding from Phase 2: the production CNAME (human-run `workers/rooms/scripts/setup-dns.sh`) and the two-phone playtest.
-
-**Next: Wave A — two parallel worktrees** (ADR-009, `docs/PHASE-4-KICKOFF.md`): Phase 3 avatars (`phase/avatars` worktree, `docs/PHASE-3-KICKOFF.md`) + Phase 4a Library (`phase/library` worktree). Then Wave B: three concurrent game worktrees (Puck Pals, Splash Squad, Ramp Riders — `games/*/BRIEF.md`).
