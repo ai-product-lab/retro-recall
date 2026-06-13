@@ -247,3 +247,58 @@ merges). The site's play routes assume the games are co-deployed under
 server). Next: this branch merges to main first, then the three game worktrees
 (`game/puck-pals`, `game/splash-squad`, `game/ramp-riders`) start — each writes
 its SPEC for Kevin's approval before building.
+
+## 2026-06-12 — Wave B: Splash Squad (the factory's first report card)
+
+The first game built *through* the ADR-009 factory rather than alongside it.
+Worktree `game/splash-squad`, additive-only. ~1 hour wall-clock, empty game dir
+to: approved SPEC, deterministic sim, 6 levels, renderer, dual-orientation touch,
+an online co-op client, and 15 tests green (full suite 116). ~2,750 lines of
+game TS. The headline: **zero engine PRs and zero room-logic edits were needed.**
+
+**What the Stage-1 Library bought us.** Every one of the BRIEF's four engine
+needs was already on main: the forward-locking `Camera`, width-agnostic
+`TileMap`, `SpawnRegions` (the sim-owned progress-scalar latch — built for this
+game's "enemies activate as the screen reaches them"), and AABB physics for a
+swarm of droplets. The BRIEF's *guessed* "boss-arena camera feature flag" turned
+out unnecessary — forward-lock + world-bound clamp pins the arena for free. And
+the rooms registry seam (`POST /api/rooms { game }` → `simFactory`) meant online
+hosting was a one-line `games.ts` entry the scaffolder already wrote. This is the
+factory thesis holding up: game #2's shared surface didn't move.
+
+**Scaffolder friction (fix-list for the factory).**
+1. `pnpm new-game <id>` refuses a non-empty `games/<id>/`, but the BRIEFs already
+   live there — had to move `BRIEF.md` aside *and* `rmdir` the empty dir, scaffold,
+   then restore. The scaffolder should tolerate a dir containing only `BRIEF.md`.
+2. **Duplicate registry entry.** Phase 4a had hand-authored a `coming-soon`
+   `splash-squad` tile; the scaffolder appended a second stub because its
+   idempotency check keys on the literal insert string, not the game `id`. Deleted
+   the dupe by hand. Fix: dedupe by `id`.
+3. The generated `package.json` has no `test` script, so `pnpm --filter <pkg> test`
+   is a silent no-op (tests only run from the root Vitest). Mildly confusing.
+4. No `src/vite-env.d.ts` in the template, so the moment a game uses
+   `import.meta.env` (the online client does) `tsc` breaks until you add it.
+
+**Shape of the build.** Sim is a pure tick function: pull-along scroll window
+(leader pulls, a moving left wall carries stragglers — no death-by-camera),
+8-direction integer aim with Stream/Spread/Burst nozzles, a water tank refilled
+only at spigots, Trundle/Sentry/Hopper grunts + a Boiler-Bot boss with an
+open-window weak point, soak + transitive splash chains, and Bubble Buddies'
+revive rules reused verbatim. Levels are a deterministic ASCII *builder* + spawn
+schedules (the approved convention for multi-screen maps) — replay fixtures keep
+it honest. The renderer follows sim `scrollX` (co-op shares one window, so no
+per-client camera). The online client is RoomClient + a splash `NetView`
+(snapshot interpolation + capped local prediction).
+
+**Duplication we took on knowingly.** The touch shell (`layout`/`controls`/
+`device`/`shell.css`) was copied from Bubble Buddies to stay additive and keep
+games decoupled. That, plus the ADR-008 comms shell (invite/emote/PWA/in-app
+escape) we deliberately did *not* re-author, points at a real follow-up: extract
+a shared `@retro-recall/shell` (and a comms layer) so game #3/#4 don't copy-paste.
+
+**Deferred / gated (told Kevin).** Avatars are blocked — `packages/avatar` isn't
+on main yet (Phase 3, the `phase/avatars` worktree); v1 ships placeholder
+rectangles per the SPEC and wires real body rigs when "Get Sprited" lands across
+all games. SFX (SPEC §12, view-layer) and real pixel art are not yet wired.
+The registry stays `coming-soon`: the IP review passed (`games/splash-squad/IP-REVIEW.md`)
+and CI is green, but the `→ live` flip waits on Kevin's two-phone playtest.
