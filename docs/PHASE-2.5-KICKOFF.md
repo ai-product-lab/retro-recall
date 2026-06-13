@@ -1,5 +1,14 @@
 # Phase 2.5 kickoff — mobile first, for real
 
+## Playtest findings (2026-06-12, Kevin's iPhone — hotfix on main, not a worktree)
+
+- Double-tapping buttons in Safari triggers smart-zoom. iOS ignores
+  `user-scalable=no`; every touch-control surface (DOM buttons, join screen,
+  emote wheel — not just the canvas) needs `touch-action: none` (or
+  `manipulation`) + preventDefault on touchend. Add a Playwright check:
+  synthetic double-tap on each control leaves viewport scale unchanged.
+  Phase 2.5 closes when this is fixed and re-playtested.
+
 Field report from Kevin's iPhone at retro-recall.pages.dev: keyboard input
 legends shown on a touch device, aspect ratios off. This phase makes the
 iPhone the primary experience per ADR-007. Shell-layer only.
