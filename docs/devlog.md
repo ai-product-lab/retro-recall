@@ -3,6 +3,54 @@
 Raw, dated notes after each significant milestone — source material for the
 Field Guide.
 
+## 2026-06-13 — Delivery pipeline + staying on the Free tier (the day prod bit back)
+
+Deploying Ramp Riders, the rooms Worker started returning `429 / error 1027`:
+the Cloudflare **Workers Free 100k-invocations/day cap**, hit account-wide.
+Multiplayer was down and we only found out via a failed smoke test. That turned
+a deploy exercise into building the missing non-functionals: a real pipeline
+with scale/cost as a measured gate, engineered to stay on Free.
+
+**Did our code cause the burn? No — measured, not guessed.** Built a load test
+(`tools/loadtest/`, `pnpm loadtest`) that drives real sessions at a local
+`wrangler dev` and counts the only things that hit Free caps: Worker invocations
+(create + room-info + per-player WS upgrade — WS *messages* ride the DO and don't
+re-invoke) and KV writes (one per room created). A 2-player session = **4
+invocations + 1 KV write**. So 100k invocations ≈ **25,000 sessions/day** — orders
+of magnitude past real traffic ⇒ **external probing**, not gameplay. Code review
+agreed: client reconnect is capped at 8 with backoff, `fetchRoomInfo` runs once
+per join, no polling anywhere. (Definitive request-by-path confirmation is queued
+on Cloudflare observability once Kevin authorizes the MCP.)
+
+**Free-tier guardrails shipped** (the actual fix, independent of any hosting
+change): `workers_dev:false` (kills the unauthenticated probe surface), per-IP
+`ratelimits` bindings on create/join (~20 + ~60 /min — generous for play, a
+ceiling for a bot), and a throttled `lookupRoom` TTL-refresh — it was writing KV
+on *every* request, which alone would blow Free's **1,000 writes/day** cap; now
+~4×/lifetime. The load test makes the binding Free constraint explicit:
+new-rooms-per-day (KV writes), headroom ~1,000/day, not invocations (~25k/day).
+
+**Pipeline.** The manual stitch is now `tools/build-site.mjs` — registry-driven
+(adding a game is a one-line `site/registry.ts` edit). New `pnpm build:site` /
+`verify`. CI now builds the deploy artifact on every PR. New `deploy.yml`: merge
+to main deploys the Pages site (always) + rooms Worker (only when its code
+changed) with a post-deploy smoke test; every PR gets a Pages preview wired to
+the prod Worker (`VITE_ROOMS_ORIGIN`) so the QA env has working multiplayer.
+
+**Consolidation explored, deferred (ADR-011).** Folding the site into the Worker
+(Static Assets, one deploy) is appealing but gated: couldn't confirm locally that
+asset hits stay free of Worker invocations (`wrangler dev` ran the Worker for
+every request) — and if that's true in prod too, it would push every page load
+onto the 100k cap, worse than today's split where Pages page-loads are already
+free. Also entangles the worker's tests with the site build. Recorded with the
+routing gotchas + a verify-on-throwaway-deploy gate.
+
+Human-run to close: add `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` repo
+secrets; deploy the guardrails Worker (ideally before the ~00:00 UTC quota reset
+so the prober can't immediately re-burn); authorize observability for the
+definitive burn breakdown. Staying on Free looks viable; Paid + a budget alert
+remains the documented fallback if real traffic ever approaches the caps.
+
 ## 2026-06-12 — Phase 1: Bubble Buddies is playable
 
 One session from empty repo to a playable game. What happened, in order:
