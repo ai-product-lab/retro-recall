@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0F1222" />
+    <title>Ramp Riders — Race Together</title>
+    <link rel="stylesheet" href="/src/shell/shell.css" />
+  </head>
+  <body>
+    <!-- Online play route the rooms server links to (/play/ramp-riders/?room=CODE).
+         Server-authoritative race via @retro-recall/netcode (SPEC §10). -->
+    <main id="stage">
+      <header id="hud">
+        <div class="hud-row">
+          <span id="title">RAMP RIDERS</span>
+          <span class="room-chip">room <span class="room-code" id="room-code">····</span></span>
+          <button id="share" class="chip-btn">invite</button>
+        </div>
+        <div class="hud-row">
+          <div id="riders"></div>
+          <div id="status">connecting…</div>
+        </div>
+      </header>
+
+      <canvas id="game"></canvas>
+
+      <p class="hint keys-only">Z pedal · X pump (boost / pre-jump) · ↑↓ lane · ← → lean in air</p>
+      <div id="controls"></div>
+    </main>
+
+    <div id="name-overlay">
+      <div class="overlay-card">
+        <div class="joining">joining room <span class="room-code" id="overlay-code"></span></div>
+        <div id="roster-pre"></div>
+        <input id="name-input" maxlength="12" placeholder="your name" autocomplete="off" />
+        <button id="join-btn" class="chip-btn primary">RACE!</button>
+        <p class="hint">📞 tip: hop on a call together — talking makes it twice the fun</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/play.ts"></script>
+  </body>
+</html>
