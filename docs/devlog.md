@@ -247,3 +247,16 @@ merges). The site's play routes assume the games are co-deployed under
 server). Next: this branch merges to main first, then the three game worktrees
 (`game/puck-pals`, `game/splash-squad`, `game/ramp-riders`) start — each writes
 its SPEC for Kevin's approval before building.
+
+## 2026-06-13 — Shared shell package (ADR-010), the first Wave-B-driven seam
+
+Splash Squad surfaced the first real duplication of the factory era: it copied
+Bubble Buddies' layout engine + 8-way touch pad + device detection verbatim
+(correctly — a game worktree can't touch `packages/*`). So those three generic
+modules now live in `@retro-recall/shell`, extracted with `git mv` (history
+preserved) and consumed by Bubble Buddies; its local copies are gone. Per
+ADR-009 this lands on `main` as its own PR — the game worktrees rebase and
+switch their imports, dropping their local copies. Verified green: tsc, lint,
+full suite (103) + BB e2e graph, both BB web entries build. Game-specific shell
+(audio/pwa/invite/emote) and the control CSS stay per-game for now; a shared CSS
+and an ADR-008 comms layer are the tracked next extractions.

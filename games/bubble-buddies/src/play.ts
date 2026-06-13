@@ -21,9 +21,12 @@ import { BubbleBuddiesSim } from './sim/sim';
 import { render, SLOT_COLORS } from './render/index';
 import { NetView, levelMap } from './net/view';
 import { EmoteWheel, EMOTE_GLYPHS } from './shell/emote-wheel';
-import { createTouchControls, type TouchControls } from './shell/controls';
-import { applyInputMode } from './shell/device';
-import { startLayout } from './shell/layout';
+import {
+  applyInputMode,
+  createTouchControls,
+  startLayout,
+  type TouchControls,
+} from '@retro-recall/shell';
 import { unlockAudio } from './shell/audio';
 import { registerServiceWorker } from './shell/pwa';
 import {

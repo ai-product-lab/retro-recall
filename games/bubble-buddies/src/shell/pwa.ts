@@ -4,7 +4,7 @@
  * walking through Safari's share sheet → Add to Home Screen. Browsers with
  * beforeinstallprompt (Android/desktop Chrome) get the real prompt instead.
  */
-import { isIOS, isStandalone } from './device';
+import { isIOS, isStandalone } from '@retro-recall/shell';
 import { isInAppBrowser } from './invite';
 
 export function registerServiceWorker(): void {

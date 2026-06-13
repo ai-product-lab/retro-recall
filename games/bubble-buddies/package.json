@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@retro-recall/netcode": "workspace:*",
-    "@retro-recall/retrokit": "workspace:*"
+    "@retro-recall/retrokit": "workspace:*",
+    "@retro-recall/shell": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

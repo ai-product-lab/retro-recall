@@ -3,7 +3,7 @@
  * and play pages. Brand palette (branding/BRAND.md): Midnight #0F1222,
  * Phosphor #3DF5A6, Bubble #4CC9F0, Cabinet #FF6B6B, Star #FFD166,
  * Paper #F2EFE9. Layout geometry (playfield/zone rects) is set inline by
- * src/shell/layout.ts; this file styles what lives inside those rects.
+ * @retro-recall/shell (layout.ts); this file styles what lives inside those rects.
  */
 
 :root {
