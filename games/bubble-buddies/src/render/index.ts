@@ -3,6 +3,8 @@ import type { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import * as C from '../sim/constants';
 import type { EnemyKind, GameState, PlayerState } from '../sim/sim';
 import type { TileMap } from '@retro-recall/retrokit/sim';
+import type { PoseName } from '@retro-recall/avatar';
+import type { AvatarSprite } from '../avatar/store';
 
 const px = (subpx: number): number => Math.floor(subpx / SUBPX);
 
@@ -39,6 +41,49 @@ export interface RenderOverlay {
   localSlot?: number;
   /** Active emotes: slot → glyph (already filtered to the display window). */
   emotes?: ReadonlyMap<number, string>;
+  /** Loaded avatar sheets by slot; a missing slot draws the placeholder. */
+  sprites?: ReadonlyMap<number, AvatarSprite>;
+}
+
+/** Per-slot last drawn x, so we can tell walk from idle (sim has no vx). */
+const lastDrawX = new Map<number, number>();
+
+/** Pick an animation pose from the player's state. */
+function poseFor(p: PlayerState, slot: number): PoseName {
+  if (!p.grounded) return 'jump';
+  if (p.blowCooldown > C.BLOW_COOLDOWN_TICKS - 8) return 'blow';
+  const moved = lastDrawX.has(slot) && lastDrawX.get(slot) !== px(p.x);
+  return moved ? 'walk' : 'idle';
+}
+
+/** Resolve a pose to a concrete sheet frame index for this tick. */
+function frameIndex(sprite: AvatarSprite, pose: PoseName, tick: number, vy: number): number {
+  const ps = sprite.poses[pose];
+  if (pose === 'jump') return ps.start + (vy < 0 ? 0 : 1); // ascend / descend
+  return ps.start + (Math.floor((tick * ps.fps) / 60) % ps.count);
+}
+
+/** Blit one 16×16 frame, mirrored for left-facing. */
+function drawAvatar(
+  r: Canvas2DRenderer,
+  sprite: AvatarSprite,
+  frame: number,
+  dx: number,
+  dy: number,
+  facing: 1 | -1,
+): void {
+  const fs = sprite.frameSize;
+  const sx = frame * fs;
+  const ctx = r.ctx;
+  if (facing === -1) {
+    ctx.save();
+    ctx.translate(dx + fs, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(sprite.bitmap, sx, 0, fs, fs, 0, 0, fs, fs);
+    ctx.restore();
+  } else {
+    ctx.drawImage(sprite.bitmap, sx, 0, fs, fs, dx, dy, fs, fs);
+  }
 }
 
 function drawTiles(r: Canvas2DRenderer, map: TileMap): void {
@@ -132,18 +177,32 @@ function drawPlayer(
   overlay: RenderOverlay,
 ): void {
   const { body, shade } = SLOT_COLORS[slot]!;
+  const sprite = overlay.sprites?.get(slot);
   if (p.phase === 'bubble') {
     // Rescue bubble: the buddy squished inside a bubble, drifting up.
     const cx = px(p.x) + C.BUBBLE_HITBOX / 2;
     const cy = px(p.y) + C.BUBBLE_HITBOX / 2;
-    drawCritter(r, cx - 4, cy - 4, 8, 8, -1, body, shade);
+    if (sprite) {
+      drawAvatar(r, sprite, frameIndex(sprite, 'rescue', st.tick, p.vy), cx - sprite.frameSize / 2, cy - sprite.frameSize / 2, p.facing);
+    } else {
+      drawCritter(r, cx - 4, cy - 4, 8, 8, -1, body, shade);
+    }
     r.circle(cx, cy, C.BUBBLE_HITBOX / 2, COLORS.bubbleFill);
     r.circleOutline(cx, cy, C.BUBBLE_HITBOX / 2, body);
     return;
   }
   if (p.phase !== 'alive') return;
   const blink = p.invuln > 0 && Math.floor(st.tick / 4) % 2 === 0;
-  drawCritter(r, px(p.x), px(p.y), C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H, p.facing, body, shade, blink);
+  if (sprite) {
+    // 16×16 sprite centered on the 12×14 hitbox, feet aligned to its base.
+    if (!blink) {
+      const pose = poseFor(p, slot);
+      drawAvatar(r, sprite, frameIndex(sprite, pose, st.tick, p.vy), px(p.x) - 2, px(p.y) - 2, p.facing);
+    }
+    lastDrawX.set(slot, px(p.x));
+  } else {
+    drawCritter(r, px(p.x), px(p.y), C.PLAYER_HITBOX_W, C.PLAYER_HITBOX_H, p.facing, body, shade, blink);
+  }
   if (overlay.localSlot === slot && isMultiplayer(st)) {
     // Tiny "you" marker above your own buddy.
     r.rect(px(p.x) + C.PLAYER_HITBOX_W / 2 - 1, px(p.y) - 4, 2, 2, body);

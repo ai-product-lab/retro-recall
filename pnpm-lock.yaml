@@ -32,6 +32,9 @@ importers:
 
   games/bubble-buddies:
     dependencies:
+      '@retro-recall/avatar':
+        specifier: workspace:*
+        version: link:../../packages/avatar
       '@retro-recall/netcode':
         specifier: workspace:*
         version: link:../../packages/netcode
