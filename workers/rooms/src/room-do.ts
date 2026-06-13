@@ -6,7 +6,7 @@
  */
 import { DurableObject } from 'cloudflare:workers';
 import { ROOM_TTL_S, RoomCore } from '@retro-recall/netcode';
-import { simFactory } from './games';
+import { DEFAULT_GAME, simFactory } from './games';
 import type { Env } from './index';
 
 const TICK_MS = 1000 / 60;
@@ -88,13 +88,17 @@ export class GameRoomDO extends DurableObject<Env> {
 
   async roomInfo(): Promise<{
     code: string;
+    /** Which game this room hosts — lets the library route a typed code to the
+     *  right play page now that more than one game is live. */
+    game: string;
     players: { slot: number; name: string; connected: boolean }[];
     spectators: number;
     tick: number;
   }> {
     const core = await this.ensureCore();
     const code = (await this.ctx.storage.get<string>('code')) ?? '';
-    return { code, ...core.roomInfo() };
+    const game = (await this.ctx.storage.get<string>('game')) ?? DEFAULT_GAME;
+    return { code, game, ...core.roomInfo() };
   }
 
   /** Test driver: advance the sim N ticks synchronously (auto-tick is off

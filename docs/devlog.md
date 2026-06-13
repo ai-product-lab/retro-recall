@@ -378,3 +378,21 @@ still owed, so the tile stays coming-soon. Flipping is a one-liner once it
 passes: set `status: 'live'` + `route: '/play/ramp-riders/'` on the registry
 entry. Tuning expected from the playtest — track lengths land ~20–26 s at full
 boost (short of the 45–90 s target; bump repeat counts), and landing feel.
+
+## 2026-06-13 — Ramp Riders goes live (+ multi-game join routing)
+
+Flipped the registry tile coming-soon → live (`status: 'live'`, `route:
+'/play/ramp-riders/'`) — the arcade now has two playable games. That surfaced
+the routing seam the registry comment had flagged: the home "join by code" box
+resolved a bare code to the *first* live game, so a Ramp Riders code would have
+mis-routed to Bubble Buddies (invite links were always fine — they carry the
+game path). Closed it the way the comment predicted: `roomInfo()` now returns
+the room's `game`, and the home join does a `/api/rooms/<code>` lookup to route
+to the right play page, falling back to a sole-live-game guess if the server is
+unreachable. Additive across worker + site; no `packages/*` or game-sim changes.
+Full suite 138 + 8 rooms + 7 avatar green.
+
+Note: shipped ahead of the two-phone playtest at Kevin's call ("up sooner, then
+refine"). Refinements still queued: track-length tuning toward 45–90 s, avatar
+body rigs for riders (packages/avatar is on main now), and the landable-deck
+slope-engine follow-up.

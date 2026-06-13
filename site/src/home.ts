@@ -3,9 +3,10 @@
  * cross-game JOIN CODE chip and the coming-soon PEEK sheet. No framework: the
  * shell is a handful of DOM nodes so it boots instantly on a phone.
  */
-import { GAMES, resolveJoinRoute, type GameEntry } from '../registry';
+import { GAMES, joinRouteForGame, resolveJoinRoute, type GameEntry } from '../registry';
 import { glyphSVG } from './art';
 import { applyInputMode } from './device';
+import { gameForRoom } from './rooms';
 
 const ROOM_CODE = /^[A-Z]{4}$/;
 
@@ -122,12 +123,18 @@ function openJoin(): void {
       status.textContent = 'Codes are 4 letters, like BLAB.';
       return;
     }
-    const route = resolveJoinRoute(code);
-    if (!route) {
-      status.textContent = 'No game is open for codes yet — try again soon.';
-      return;
-    }
-    location.href = route;
+    status.textContent = 'finding your room…';
+    // Ask the server which game this code belongs to (>1 game is live now), and
+    // fall back to a sole live game if the lookup is unreachable.
+    void gameForRoom(code).then((game) => {
+      const route =
+        (game !== null ? joinRouteForGame(game, code) : null) ?? resolveJoinRoute(code);
+      if (!route) {
+        status.textContent = "couldn't find that room — check the code, or use the invite link.";
+        return;
+      }
+      location.href = route;
+    });
   });
   openSheet(form);
   input.focus();

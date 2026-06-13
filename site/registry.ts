@@ -87,7 +87,8 @@ export const GAMES: readonly GameEntry[] = [
     tagline: 'Backyard BMX, one more race.',
     players: '1–4',
     mode: 'race',
-    status: 'coming-soon',
+    status: 'live',
+    route: '/play/ramp-riders/',
     accent: '#ff6b6b',
     art: 'wheel',
     teaser: {
@@ -104,13 +105,23 @@ export function gameById(id: string): GameEntry | undefined {
 }
 
 /**
- * Resolve a room code to a play route. Today only one game is live, so a code
- * routes there. When multiple games ship, the rooms Durable Object (which knows
- * its own game) gains a tiny lookup endpoint and this becomes a server hop —
- * the call site stays the same.
+ * Join URL for a known game id + room code, or null if that game isn't live.
+ * Used once the rooms server tells us which game a code belongs to (the home
+ * "join by code" flow does a `/api/rooms/<code>` lookup now that >1 game ships).
+ */
+export function joinRouteForGame(gameId: string, code: string): string | null {
+  const g = gameById(gameId);
+  if (g?.status !== 'live' || !g.route) return null;
+  return `${g.route}?room=${encodeURIComponent(code)}`;
+}
+
+/**
+ * Offline fallback when the server lookup is unavailable: route to a live game.
+ * Unambiguous only while exactly one game is live; with several, the server hop
+ * in `joinRouteForGame` is the source of truth.
  */
 export function resolveJoinRoute(code: string): string | null {
-  const live = GAMES.find((g) => g.status === 'live');
-  if (!live?.route) return null;
-  return `${live.route}?room=${encodeURIComponent(code)}`;
+  const live = GAMES.filter((g) => g.status === 'live' && g.route);
+  if (live.length !== 1) return null;
+  return `${live[0]!.route}?room=${encodeURIComponent(code)}`;
 }
