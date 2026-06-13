@@ -177,3 +177,73 @@ runs no WebSocket server.
 Deployed to retro-recall.pages.dev. Phase gate remaining: Kevin's two-phone
 playtest (now doubling as the Phase 2 leftover), plus the Phase 2 DNS
 CNAME, both human-run.
+
+## 2026-06-12 — Phase 4a: the library, the engine it needs, and the factory
+
+The arcade goes from one game to four. ADR-009 splits the work: build the
+shared stuff first on one branch (this one), *then* three game worktrees in
+parallel. This is that first branch. Three deliverables, in order — engine,
+library, scaffolder — because the order is the whole point: freeze the shared
+surface before three sessions start writing against it.
+
+**Engine extensions, proven additive.** The three BRIEFs were audited for what
+≥2 games need; that landed in RetroKit. A camera (follow-with-deadzone, world
+clamp, forward lock for lock-and-advance, boss-pin) — kept deliberately *out*
+of the sim core, because a camera is per-client and racing follows your own
+rider; a camera feeding the sim would desync netcode. Big maps (the tile grid
+was always dimension-agnostic; pinned that down + a cull window). Slope tiles
+(22.5°/45°) in the integer physics — the one real physics-core change. And
+camera-triggered spawn regions, which despite the name trigger off a *sim-owned
+monotonic progress scalar*, never a render camera, so co-op clients spawn the
+same enemies.
+
+The slope change is where determinism could have broken. The guard is
+structural, not vigilance: `TileMap.hasSlopes` is computed at parse and false
+for every Bubble Buddies map, so `moveAABB` runs the byte-identical pre-slope
+path unless a map actually contains a ramp. Proof, not assertion — both golden
+replay fixtures hash-matched the pre-work baseline byte-for-byte after the
+physics edit (checksummed before I touched anything, re-checked after). 31 new
+engine tests; 103 green total.
+
+**Library home.** A registry (`site/registry.ts`) is the single source of
+truth — one entry per game drives tiles, status, routes, and the coming-soon
+teasers. Bubble Buddies live; the other three are coming-soon tiles that *peek*
+(a bottom-sheet teaser pulled straight from each BRIEF, so the copy can't drift
+from the design). Mobile-first per ADR-007: 2-up portrait / 4-up wide via an
+auto-fit grid, safe-area padding, pixel-art thumbnails (original house glyphs,
+no trade dress), ≥44px hit areas, the one allowed "pop." Showed Kevin the
+layout before building it; both calls (teaser pages, a persistent cross-game
+JOIN CODE chip) came back as proposed.
+
+**The factory.** `pnpm new-game <id>` generates a complete game — deterministic
+sim implementing the full NetSim contract, SPEC template, renderer + dual-
+orientation touch shell, a replay test that self-writes its golden on first
+run, the play route — then wires the shared seams *additively* at stable
+anchors: the site registry, the rooms game registry, and the TS project graph.
+The enabling refactor was making the rooms DO pick its sim from a game→factory
+map instead of hardcoding Bubble Buddies; pre-registry rooms default to the
+same sim byte-for-byte, so a Stage-2 game worktree's only worker touch is
+appending one line (ADR-009's additive rule made literal).
+
+Proof it works: `pnpm new-game demo-game` → typecheck, lint, 4 tests (fixture
+self-written), build (both routes), and the stub *renders* a hero box resting
+on the floor. Then `--remove demo-game` returned `git status` to spotless —
+the factory is reversible, which is what makes it safe to run casually.
+
+**Friction, for the report card.** The cost wasn't the templates, it was the
+project-reference web: a new game's sim is imported by the worker, so it needs
+entries in the root tsconfig, the worker tsconfig, the worker package.json,
+*and* the worker source — four additive edits, all now driven by the
+scaffolder's anchors. Worth noting for the factory thesis: game #2 should be
+near-free on shared infra, but every game still pays one `pnpm install` (new
+workspace member) and owes its own SPEC before any code. Wall-clock for this
+branch was dominated by the engine (slopes especially — landing physics wants
+care), not the scaffolder.
+
+**Timing / what's left.** Engine + tests, then the gated library, then the
+scaffolder — five commits, all on `phase/library`, none on `main` (Kevin
+merges). The site's play routes assume the games are co-deployed under
+`/play/*` on Cloudflare Pages (true in prod, not in the standalone site dev
+server). Next: this branch merges to main first, then the three game worktrees
+(`game/puck-pals`, `game/splash-squad`, `game/ramp-riders`) start — each writes
+its SPEC for Kevin's approval before building.
