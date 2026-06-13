@@ -9,6 +9,14 @@
 export const SNAPSHOT_EVERY = 3;
 /** State-hash broadcast every N sim ticks (desync detection). */
 export const HASHCHECK_EVERY = 600;
+/**
+ * Input is sent only when the pad state changes (see room-client), so a still
+ * player streams nothing. This is the floor: re-send the current bits at least
+ * every N ticks (~0.5 s) as a keepalive — it re-establishes the server's held
+ * input after a rare DO eviction, and proves liveness so the room can drop
+ * genuinely-gone tabs without dropping a player who's simply holding a button.
+ */
+export const INPUT_KEEPALIVE_TICKS = 30;
 /** Server-side emote rate limit: one per N ticks per player. */
 export const EMOTE_RATE_TICKS = 30;
 /** Shell-side: how long an emote speech bubble stays up. */
@@ -55,8 +63,12 @@ export interface InputMsg {
   /** Client's predicted server tick for this input. */
   tick: number;
   bits: number;
-  /** Redundant bitmasks for ticks tick-1, tick-2, tick-3 (ride over loss). */
-  prev: number[];
+  /**
+   * Optional redundant bitmasks for ticks tick-1, tick-2, tick-3. Unnecessary
+   * on a reliable ordered WebSocket (the server holds the last input across
+   * gap ticks), so the current client omits it; honored if a client sends it.
+   */
+  prev?: number[];
 }
 
 export interface EmoteMsg {
@@ -180,6 +192,7 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
       const prev = v['prev'];
       if (typeof tick !== 'number' || !Number.isInteger(tick) || tick < 0) return null;
       if (typeof bits !== 'number' || !Number.isInteger(bits)) return null;
+      if (prev === undefined) return { type: 'input', tick, bits };
       if (!Array.isArray(prev) || prev.length > 3 || prev.some((b) => typeof b !== 'number')) {
         return null;
       }

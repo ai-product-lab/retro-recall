@@ -19,3 +19,6 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      # Prove the deployable artifact builds + stitches (catches a broken deploy
+      # tree before merge, not after). `pnpm loadtest` stays a local capacity tool.
+      - run: pnpm build:site

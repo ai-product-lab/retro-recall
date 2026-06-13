@@ -81,11 +81,17 @@ describe('two headless clients vs. the room server', () => {
       random: () => rng.next() / 2 ** 32,
     });
 
+    // Count input messages each client puts on the wire — the burn fix means
+    // a held button must NOT stream one per tick (see HANDOFF-ws-input-burn).
+    const inputs = { a: 0, b: 0 };
     let nextConn = 0;
     const makeConnect = (who: 'a' | 'b') => (): Transport => {
       const connId = `${who}${nextConn++}`;
       const end: PipeEnd = new PipeEnd(
-        (data) => post(DELAY, () => server.handleMessage(connId, data)),
+        (data) => {
+          if (data.includes('"type":"input"')) inputs[who]++;
+          post(DELAY, () => server.handleMessage(connId, data));
+        },
         () => post(0, () => server.handleClose(connId)),
       );
       clientEnds.set(connId, end);
@@ -158,6 +164,12 @@ describe('two headless clients vs. the room server', () => {
     expect(clientA.desyncs).toEqual([]);
     expect(clientB.desyncs).toEqual([]);
     expect(events).toEqual([]);
+
+    // Burn gate: send-on-change keeps inputs far below one-per-tick. A streamed
+    // ~TOTAL messages before the fix; now it's a small multiple of its changes.
+    expect(inputs.a).toBeGreaterThan(0);
+    expect(inputs.a).toBeLessThan(TOTAL / 4);
+    expect(inputs.b).toBeLessThan(TOTAL / 4);
 
     // Both clients are active in their slots; B reclaimed slot 1 after rejoin.
     expect(clientA.status).toBe('active');

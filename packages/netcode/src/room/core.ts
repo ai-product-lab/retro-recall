@@ -81,6 +81,15 @@ export class RoomCore {
     new Map<number, number>(),
     new Map<number, number>(),
   ];
+  /**
+   * Per-slot last applied input, held across gap ticks. The client sends input
+   * only on change (a still player streams nothing), so when no buffered input
+   * covers a tick we re-apply the last one — a player holding Right keeps
+   * moving. `null` until a slot's first input (a connected-but-silent player
+   * contributes nothing, matching a disconnect's grace rule). Transient, like
+   * `inputs`: not persisted, re-established by the client's keepalive.
+   */
+  private readonly heldInput: (number | null)[] = [null, null, null, null];
   private lastEmoteTick = [-EMOTE_RATE_TICKS, -EMOTE_RATE_TICKS, -EMOTE_RATE_TICKS, -EMOTE_RATE_TICKS];
 
   constructor(opts: RoomCoreOptions, persisted?: string) {
@@ -215,6 +224,7 @@ export class RoomCore {
           meta.name = msg.playerName;
           if (msg.avatarId !== undefined) meta.avatarId = msg.avatarId;
           this.conns.set(connId, slot);
+          this.heldInput[slot] = null; // resumed player re-establishes input
           this.sim?.rejoinPlayer(slot);
           this.welcome(connId, slot, meta.token);
           this.broadcastPeerMeta();
@@ -236,6 +246,7 @@ export class RoomCore {
         avatarId: msg.avatarId,
       };
       this.conns.set(connId, slot);
+      this.heldInput[slot] = null; // fresh slot: no button held yet
       this.sim.joinPlayer(slot);
       this.welcome(connId, slot, token);
       this.broadcastPeerMeta();
@@ -274,11 +285,15 @@ export class RoomCore {
       if (!buf.has(tick)) buf.set(tick, bits);
     };
     store(msg.tick, msg.bits);
-    msg.prev.forEach((bits, i) => store(msg.tick - 1 - i, bits));
+    (msg.prev ?? []).forEach((bits, i) => store(msg.tick - 1 - i, bits));
     if (buf.size > 2 * MAX_INPUT_LEAD) buf.clear(); // defensive bound
   }
 
-  /** Latest buffered input at or before tick `t` (late inputs apply now). */
+  /**
+   * Latest buffered input at or before tick `t`, else the slot's held input.
+   * Late inputs apply now (never rewound); when nothing new has arrived we
+   * re-apply the last one, so send-on-change clients keep a held button down.
+   */
   private takeInput(slot: number, t: number): number | null {
     const buf = this.inputs[slot]!;
     let chosen: number | null = null;
@@ -293,8 +308,10 @@ export class RoomCore {
       for (const tick of [...buf.keys()]) {
         if (tick <= t) buf.delete(tick);
       }
+      this.heldInput[slot] = chosen;
+      return chosen;
     }
-    return chosen;
+    return this.heldInput[slot]!;
   }
 
   // --- The authoritative tick ---

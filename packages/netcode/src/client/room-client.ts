@@ -1,7 +1,9 @@
 /**
  * RoomClient: client-side netcode per SPEC.md and ADR-003.
  *
- * - sends the local pad state every tick (with 3 ticks of redundancy)
+ * - sends the local pad state only when it changes (plus a low-rate keepalive);
+ *   the server holds the last input across gap ticks, so a still player streams
+ *   nothing — this is what keeps the room within the Workers Free request cap
  * - predicts the local player by running the same deterministic sim ahead
  *   of the server, rebasing onto every snapshot and replaying buffered
  *   local inputs
@@ -13,7 +15,14 @@
  * Timer-free and clock-injected: the shell drives it at 60 Hz via
  * localTick(); tests drive it manually.
  */
-import { EMOTE_DISPLAY_TICKS, HASHCHECK_EVERY, parseServerMsg, type EmoteKind, type PeerSlotMeta } from '../protocol';
+import {
+  EMOTE_DISPLAY_TICKS,
+  HASHCHECK_EVERY,
+  INPUT_KEEPALIVE_TICKS,
+  parseServerMsg,
+  type EmoteKind,
+  type PeerSlotMeta,
+} from '../protocol';
 import type { NetSim } from '../room/core';
 import type { Transport } from './transport';
 
@@ -74,6 +83,10 @@ export class RoomClient<S extends NetSim> {
 
   /** The tick the next local input will be stamped with. */
   private inputTick = 0;
+  /** Last bits actually sent to the server (-1 → force a send on first tick). */
+  private lastSentBits = -1;
+  /** Ticks since the last input send, for the keepalive floor. */
+  private ticksSinceInputSend = 0;
   private ownInputs = new Map<number, number>();
   private hashAtTick = new Map<number, number>();
   private tickAdjust = 0; // +n: skip n increments (we're ahead); -n: extra ticks
@@ -138,19 +151,15 @@ export class RoomClient<S extends NetSim> {
 
     for (let i = 0; i < steps; i++) {
       if (!this.spectator) {
+        // Record every tick (prediction replay needs the full local history),
+        // but only send when the pad changes — plus a keepalive floor. The
+        // server holds the last input for the gap ticks.
         this.ownInputs.set(this.inputTick, bits);
-        this.transport?.send(
-          JSON.stringify({
-            type: 'input',
-            tick: this.inputTick,
-            bits,
-            prev: [
-              this.ownInputs.get(this.inputTick - 1) ?? 0,
-              this.ownInputs.get(this.inputTick - 2) ?? 0,
-              this.ownInputs.get(this.inputTick - 3) ?? 0,
-            ],
-          }),
-        );
+        if (bits !== this.lastSentBits || ++this.ticksSinceInputSend >= INPUT_KEEPALIVE_TICKS) {
+          this.transport?.send(JSON.stringify({ type: 'input', tick: this.inputTick, bits }));
+          this.lastSentBits = bits;
+          this.ticksSinceInputSend = 0;
+        }
       }
       sim.tick(this.predictionInputs(bits));
       this.inputTick++;
@@ -193,6 +202,8 @@ export class RoomClient<S extends NetSim> {
         this.snapLatest = { tick: msg.tick, state: msg.snapshot };
         this.ownInputs.clear();
         this.hashAtTick.clear();
+        this.lastSentBits = -1; // force a fresh input send after (re)connect
+        this.ticksSinceInputSend = 0;
         this.inputTick = msg.tick + MIN_LEAD;
         for (let i = 0; i < MIN_LEAD; i++) sim.tick(this.predictionInputs(0));
         this.setStatus('active');

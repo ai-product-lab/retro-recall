@@ -1,0 +1,122 @@
+name: Deploy
+
+# Production deploy on merge to main; a Pages preview per PR (the QA env).
+# Requires repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+# Hosting is the Pages + rooms-Worker split (ADR-001); a single-deploy
+# consolidation is proposed but gated in ADR-011.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CANONICAL_ORIGIN: https://retro-recall.ruralrooted.com
+
+jobs:
+  # ── Production: site (always) + rooms Worker (only when its code changed) ──
+  production:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The rooms Worker is the authoritative game server — only redeploy it when
+      # its code (or shared packages) changed, so a pure site/game PR doesn't
+      # churn the live server.
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            worker:
+              - 'workers/rooms/**'
+              - 'packages/**'
+
+      - name: Deploy rooms Worker
+        if: steps.changes.outputs.worker == 'true'
+        run: pnpm --filter @retro-recall/rooms-worker run deploy
+
+      # The site is static and cheap to redeploy — always ship it. Both deploys
+      # happen before the smoke test so a transient server issue (e.g. a Free
+      # quota 429) can't block the independent site deploy.
+      - run: pnpm build:site
+      - name: Deploy site (Cloudflare Pages)
+        run: npx wrangler pages deploy dist-deploy --project-name retro-recall
+
+      # Final health check: flags a broken server deploy (fails the run) without
+      # gating the deploys above. A 429 here means the Free daily quota/rate is
+      # exhausted (server unreachable), not a bad deploy.
+      - name: Smoke test the rooms Worker
+        if: steps.changes.outputs.worker == 'true'
+        run: |
+          set -e
+          echo "Creating a Ramp Riders room…"
+          RESP=$(curl -s -X POST "$CANONICAL_ORIGIN/api/rooms" \
+            -H 'content-type: application/json' -d '{"game":"ramp-riders"}')
+          echo "$RESP"
+          CODE=$(echo "$RESP" | sed -n 's/.*"code":"\([^"]*\)".*/\1/p')
+          if [ -z "$CODE" ]; then
+            echo "::error::No room code returned (a 429 here means the Free quota/rate is exhausted, not a bad deploy)."
+            exit 1
+          fi
+          echo "Looking up room $CODE…"
+          curl -s "$CANONICAL_ORIGIN/api/rooms/$CODE" | grep -q '"game":"ramp-riders"' \
+            && echo "✓ server tags the room with its game" \
+            || { echo "::error::room lookup missing game tag"; exit 1; }
+
+  # ── Preview: a Pages deploy per PR, wired to the prod rooms Worker so the QA
+  #    env has working multiplayer (cross-origin; the Worker sends CORS '*'). ──
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # post the preview URL as a PR comment
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # VITE_ROOMS_ORIGIN points the preview's client at the production rooms
+      # Worker, so create/join/play work from the *.pages.dev preview URL.
+      - run: pnpm build:site
+        env:
+          VITE_ROOMS_ORIGIN: ${{ env.CANONICAL_ORIGIN }}
+
+      - name: Deploy preview (Cloudflare Pages)
+        id: deploy
+        run: |
+          OUT=$(npx wrangler pages deploy dist-deploy \
+            --project-name retro-recall --branch "${{ github.head_ref }}")
+          echo "$OUT"
+          URL=$(echo "$OUT" | grep -oE 'https://[a-z0-9-]+\.retro-recall\.pages\.dev' | head -1)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview URL on the PR
+        if: steps.deploy.outputs.url != ''
+        continue-on-error: true # a comment hiccup (e.g. fork PR) must not fail the deploy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = "${{ steps.deploy.outputs.url }}";
+            const body = `🎮 **Preview deployed:** ${url}\n\nMultiplayer is wired to the production rooms Worker, so create/join/play work from here.`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const mine = comments.find((c) => c.user.type === 'Bot' && c.body.includes('Preview deployed'));
+            if (mine) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+            }

@@ -7,5 +7,6 @@ coverage/
 .env.*
 .DS_Store
 dist-web/
+dist-deploy/
 test-results/
 playwright-report/

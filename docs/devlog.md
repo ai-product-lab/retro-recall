@@ -3,6 +3,119 @@
 Raw, dated notes after each significant milestone — source material for the
 Field Guide.
 
+## 2026-06-13 — Killing the real burn: send-on-change input (netcode)
+
+Closed the actual Free-tier blocker from `HANDOFF-ws-input-burn.md`: the burn
+was **self-inflicted**, not probing. The client streamed an `input` WS message
+**every tick (60 Hz), unconditionally**, and on a hibernating Durable Object
+**each inbound message bills as a request** — two players ≈ 120 req/s, one
+forgotten tab = millions/day. The load test from earlier today had it wrong:
+it counted only the ~4 fetches/session and assumed WS messages "ride for free."
+
+**The fix is in the netcode, engine-first (ADR-009), and it's determinism-safe:**
+
+- **Client sends input only when the pad changes**, plus a keepalive every
+  `INPUT_KEEPALIVE_TICKS` = 30 ticks (`room-client.ts`). Dropped the
+  `prev[t-1..t-3]` loss-redundancy — pointless on a reliable ordered WebSocket.
+  Still records every tick locally (prediction replay needs the full history);
+  only the *network send* is gated.
+- **Server holds the last input across gap ticks** (`core.ts` `takeInput` +
+  `heldInput[]`). A player holding Right who stops sending keeps moving. `null`
+  only before a slot's first input or while disconnected — so the change is
+  byte-identical to streaming every tick for an already-active player. This was
+  the determinism-sensitive part.
+- **DO idle-reap** (`room-do.ts`): close any connection silent past
+  `IDLE_DISCONNECT_MS` = 30 s; kills the forgotten/backgrounded-tab case at the
+  server, and lets an emptied room stop ticking. Rejoin window (600 s) outlives
+  it, so coming back still resumes your slot.
+
+**Why the sim/replay fixtures didn't need regenerating** (the handoff guessed
+they might): the game replay fixtures feed bits *directly* to `sim.tick([bits])`
+— they never touch the wire protocol. The per-tick input contract the sim sees
+is unchanged (the server reconstructs the identical stream via held input), so
+all fixtures stayed green — that's the validation, not a regen.
+
+**Validation.** New `room-core` test proves send-on-change is byte-identical to
+every-tick feeding (and that held input is exactly what was held); new
+`room-client` test proves a held button emits a handful of messages over 90
+ticks instead of 90, carries no `prev`, and spectators send nothing; the
+two-headless-clients gate now also asserts inputs stay well under one-per-tick
+across a 2000-tick session with delay/disconnect/rejoin and **zero desyncs**;
+DO integration tests cover held-input over real WebSockets and the idle reap.
+176 tests green; typecheck + lint clean.
+
+**Capacity, corrected — and now measured.** Reworked `tools/loadtest/` to count
+the thing that actually bills: it replays the real send-on-change cadence
+(input-on-change + keepalive + ping) for a modeled N-second session, sends it
+for real, and counts inbound WS messages alongside fetch invocations. A 2p×30s
+active session (~4 pad changes/s/player) measures **~342 billable requests**
+(the old tool reported 4) — **~11× cheaper** than the 60 Hz stream's ~3,666.
+Free headroom: **~292 active sessions/day** (binding constraint is now correctly
+inbound requests, not KV); a forgotten tab costs ~90 requests then the reaper
+cuts it. Hibernation stays the right call and Free is viable for friends-scale
+play. Only open item: re-pull Cloudflare observability after a real 2-phone
+session once the quota resets (~00:00 UTC 2026-06-14).
+
+## 2026-06-13 — Delivery pipeline + staying on the Free tier (the day prod bit back)
+
+Deploying Ramp Riders, the rooms Worker started returning `429 / error 1027`:
+the Cloudflare **Workers Free 100k-invocations/day cap**, hit account-wide.
+Multiplayer was down and we only found out via a failed smoke test. That turned
+a deploy exercise into building the missing non-functionals: a real pipeline
+with scale/cost as a measured gate, engineered to stay on Free.
+
+**Did our code cause the burn? No — measured, not guessed.** Built a load test
+(`tools/loadtest/`, `pnpm loadtest`) that drives real sessions at a local
+`wrangler dev` and counts the only things that hit Free caps: Worker invocations
+(create + room-info + per-player WS upgrade — WS *messages* ride the DO and don't
+re-invoke) and KV writes (one per room created). A 2-player session = **4
+invocations + 1 KV write**. So 100k invocations ≈ **25,000 sessions/day** — orders
+of magnitude past real traffic ⇒ **external probing**, not gameplay. Code review
+agreed: client reconnect is capped at 8 with backoff, `fetchRoomInfo` runs once
+per join, no polling anywhere. (Definitive request-by-path confirmation is queued
+on Cloudflare observability once Kevin authorizes the MCP.)
+
+**Free-tier guardrails shipped** (the actual fix, independent of any hosting
+change): `workers_dev:false` (kills the unauthenticated probe surface), per-IP
+`ratelimits` bindings on create/join (~20 + ~60 /min — generous for play, a
+ceiling for a bot), and a throttled `lookupRoom` TTL-refresh — it was writing KV
+on *every* request, which alone would blow Free's **1,000 writes/day** cap; now
+~4×/lifetime. The load test makes the binding Free constraint explicit:
+new-rooms-per-day (KV writes), headroom ~1,000/day, not invocations (~25k/day).
+
+**Pipeline.** The manual stitch is now `tools/build-site.mjs` — registry-driven
+(adding a game is a one-line `site/registry.ts` edit). New `pnpm build:site` /
+`verify`. CI now builds the deploy artifact on every PR. New `deploy.yml`: merge
+to main deploys the Pages site (always) + rooms Worker (only when its code
+changed) with a post-deploy smoke test; every PR gets a Pages preview wired to
+the prod Worker (`VITE_ROOMS_ORIGIN`) so the QA env has working multiplayer.
+
+**Consolidation explored, deferred (ADR-011).** Folding the site into the Worker
+(Static Assets, one deploy) is appealing but gated: couldn't confirm locally that
+asset hits stay free of Worker invocations (`wrangler dev` ran the Worker for
+every request) — and if that's true in prod too, it would push every page load
+onto the 100k cap, worse than today's split where Pages page-loads are already
+free. Also entangles the worker's tests with the site build. Recorded with the
+routing gotchas + a verify-on-throwaway-deploy gate.
+
+Human-run to close: add `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` repo
+secrets; deploy the guardrails Worker (ideally before the ~00:00 UTC quota reset
+so the prober can't immediately re-burn); authorize observability for the
+definitive burn breakdown. Staying on Free looks viable; Paid + a budget alert
+remains the documented fallback if real traffic ever approaches the caps.
+
+**CORRECTION (same day, after observability landed):** the "external probing"
+verdict above was **wrong**, and so was the load test. The burn was
+**self-inflicted**: the client sends an `input` WebSocket message every tick
+(60 Hz, unconditionally — `room-client.ts:139-157`), and **each inbound WS
+message to `GameRoomDO` bills as a request** (DO hibernation → per-message). Two
+players × 60 Hz for ~3 h (01:00–04:00 UTC, room `FGAH`) = ~800k requests → blew
+the 100k/day cap. The load test under-counted by ~750× because it assumed WS
+messages were free. The shipped guardrails (rate limits, `workers_dev:false`, KV
+throttle) are good hygiene but **don't address this** — the real fix is in the
+netcode (send-on-change + tab-hidden pause + DO idle cleanup). Full write-up and
+next-session plan: `docs/HANDOFF-ws-input-burn.md`.
+
 ## 2026-06-12 — Phase 1: Bubble Buddies is playable
 
 One session from empty repo to a playable game. What happened, in order:
