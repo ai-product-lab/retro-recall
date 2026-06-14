@@ -94,6 +94,21 @@ describe('camera pin (boss arena)', () => {
   });
 });
 
+describe('camera view dimensions stay integer', () => {
+  it('floors fractional view sizes so whole-pixel positions hold', () => {
+    const cam = new Camera(255.7, 191.2);
+    expect(cam.viewW).toBe(255);
+    expect(cam.viewH).toBe(191);
+  });
+
+  it('centerOn yields integer positions for odd view widths', () => {
+    const cam = new Camera(255, 191);
+    cam.centerOn(1000, 96, { w: 256 * 8, h: 192 });
+    expect(Number.isInteger(cam.x)).toBe(true);
+    expect(Number.isInteger(cam.y)).toBe(true);
+  });
+});
+
 describe('worldToScreen', () => {
   it('translates by the camera offset', () => {
     const cam = new Camera(VIEW_W, VIEW_H);

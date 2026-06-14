@@ -54,10 +54,16 @@ export class Camera {
   /** Top edge of the view in world pixels. */
   y = 0;
 
-  constructor(
-    readonly viewW: number,
-    readonly viewH: number,
-  ) {}
+  readonly viewW: number;
+  readonly viewH: number;
+
+  constructor(viewW: number, viewH: number) {
+    // The camera promises whole-pixel positions; a fractional view would make
+    // the `>> 1` centering silently truncate and skew by a sub-pixel. Floor at
+    // the boundary so every downstream calc stays integer.
+    this.viewW = Math.floor(viewW);
+    this.viewH = Math.floor(viewH);
+  }
 
   /** The maximum top-left x for this world (0 when the world fits the view). */
   private maxX(world: CameraWorld): number {

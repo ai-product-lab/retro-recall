@@ -6,6 +6,10 @@ export interface LoopOptions {
   /** Draw the current state. Called once per animation frame. */
   render: () => void;
   ticksPerSecond?: number;
+  /** Fired when the loop resumes after a background gap longer than the catch-up
+   *  clamp (rAF pauses while hidden). The netcode/reconnect layer hooks this to
+   *  resync instead of silently dropping the elapsed ticks. */
+  onResume?: (gapMs: number) => void;
 }
 
 /**
@@ -14,9 +18,10 @@ export interface LoopOptions {
  * accumulator after long pauses (tab in background) instead of spiraling.
  * Returns a stop function.
  */
-export function startLoop({ tick, render, ticksPerSecond = TICKS_PER_SECOND }: LoopOptions): () => void {
+export function startLoop({ tick, render, ticksPerSecond = TICKS_PER_SECOND, onResume }: LoopOptions): () => void {
   const tickMs = 1000 / ticksPerSecond;
   const maxCatchUpTicks = 5;
+  const maxCatchUpMs = tickMs * maxCatchUpTicks;
   let last = performance.now();
   let acc = 0;
   let rafId = 0;
@@ -24,9 +29,15 @@ export function startLoop({ tick, render, ticksPerSecond = TICKS_PER_SECOND }: L
 
   const frame = (now: number): void => {
     if (!running) return;
-    acc += now - last;
+    const elapsed = now - last;
+    acc += elapsed;
     last = now;
-    if (acc > tickMs * maxCatchUpTicks) acc = tickMs * maxCatchUpTicks;
+    if (acc > maxCatchUpMs) {
+      acc = maxCatchUpMs;
+      // Elapsed beyond the clamp means rAF was paused (tab backgrounded);
+      // let the netcode layer resync rather than pretend no time passed.
+      if (elapsed > maxCatchUpMs) onResume?.(elapsed);
+    }
     while (acc >= tickMs) {
       tick();
       acc -= tickMs;

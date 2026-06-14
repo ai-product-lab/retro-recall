@@ -45,13 +45,27 @@ export interface LayoutOptions {
   onChange?: (layout: LayoutState) => void;
 }
 
-/** Narrowest pillarbox bar (CSS px) we accept before shrinking the scale. */
-const MIN_SIDE_BAR = 116;
+/** Narrowest pillarbox bar (CSS px) we accept before shrinking the scale.
+ *  Must clear the widest control art: the A/B cluster (~146px) > d-pad (120px). */
+const MIN_SIDE_BAR = 150;
 /** Shortest controller band under a portrait playfield. */
 const MIN_CONTROL_BAND = 168;
 /** Tallest useful band — beyond this, anchor controls low, near the thumbs. */
 const MAX_CONTROL_BAND = 320;
 const GAP = 8;
+
+/**
+ * Controller band height (px). Guarantees at least `min` even when the playfield
+ * leaves less room — the band keeps a usable hit area and the playfield
+ * overlap-shrinks rather than the controls collapsing to zero/negative height.
+ * Pure; exported for tests.
+ */
+export const controlBand = (freeBelow: number, min = MIN_CONTROL_BAND, max = MAX_CONTROL_BAND): number =>
+  Math.max(min, Math.min(freeBelow, max));
+
+/** Largest integer device-px-per-logical-px that fits, never below 1. Pure. */
+export const integerScale = (availWpx: number, availHpx: number, logicalW: number, logicalH: number): number =>
+  Math.max(1, Math.floor(Math.min(availWpx / logicalW, availHpx / logicalH)));
 
 const place = (el: HTMLElement, x: number, y: number, w: number, h: number): void => {
   el.style.position = 'absolute';
@@ -94,15 +108,11 @@ export function startLayout(refs: LayoutRefs, opts: LayoutOptions = {}): {
     let scale: number;
     if (orientation === 'landscape') {
       const sideReserve = touch ? MIN_SIDE_BAR : 0;
-      scale = Math.min(
-        ((availW - 2 * sideReserve) * dpr) / logicalW,
-        (availH * dpr) / logicalH,
-      );
+      scale = integerScale((availW - 2 * sideReserve) * dpr, availH * dpr, logicalW, logicalH);
     } else {
       const bandReserve = touch ? MIN_CONTROL_BAND : 0;
-      scale = Math.min((availW * dpr) / logicalW, ((availH - bandReserve) * dpr) / logicalH);
+      scale = integerScale(availW * dpr, (availH - bandReserve) * dpr, logicalW, logicalH);
     }
-    scale = Math.max(1, Math.floor(scale));
 
     // Snap the playfield origin to the device-pixel grid so the integer
     // upscale stays crisp (a half-device-pixel offset would resample).
@@ -133,7 +143,8 @@ export function startLayout(refs: LayoutRefs, opts: LayoutOptions = {}): {
         } else {
           // Game Boy: the band below the playfield, d-pad left, A/B right.
           // On tall screens, anchor the band low — that's where thumbs rest.
-          const bandH = Math.min(ah - (y + h), MAX_CONTROL_BAND);
+          // controlBand() guarantees a usable height even on short viewports.
+          const bandH = controlBand(ah - (y + h));
           const bandY = ah - bandH;
           place(refs.dpad, 0, bandY, aw / 2, bandH);
           place(refs.buttons, aw / 2, bandY, aw / 2, bandH);
@@ -141,7 +152,9 @@ export function startLayout(refs: LayoutRefs, opts: LayoutOptions = {}): {
       }
     }
 
-    if (refs.keysHint) {
+    // Keyboard legend is desktop-only; placing it on touch would land it in the
+    // controller band (no vertical space is reserved for it there).
+    if (refs.keysHint && !touch) {
       refs.keysHint.style.position = 'absolute';
       refs.keysHint.style.left = '0';
       refs.keysHint.style.right = '0';

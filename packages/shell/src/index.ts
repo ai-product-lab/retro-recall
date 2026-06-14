@@ -12,3 +12,6 @@
 export * from './layout';
 export * from './controls';
 export * from './device';
+export * from './gestures';
+export * from './touch';
+export * from './audio';
