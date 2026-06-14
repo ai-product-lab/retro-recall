@@ -640,3 +640,38 @@ manual (no CD): the rooms worker must ship *with* Puck Pals registered or prod
 online play 400s. Queued refinements: avatar body rigs for skaters
 (`packages/avatar` is on main now), and a feel pass on skating/checks after the
 playtest.
+
+## 2026-06-14 — The pages.dev 405: a hostname bug wearing an HTTP-method costume
+
+Kevin hit **405 Method Not Allowed** on *Join game* for every game on the
+deployed site. The error code is a misdirection: the rooms worker never returns
+405 (unknown routes 404). A 405 is what Cloudflare **Pages** returns when you
+`POST` to a path it only knows as a static asset — so the create-room request
+was landing on Pages, not the worker.
+
+Why: the site is served at two hostnames, but the `/api/*` and `/room/*` worker
+routes exist only on the canonical host (`retro-recall.ruralrooted.com`).
+`POST /api/rooms` → **200** on canonical, **405** on `retro-recall.pages.dev`.
+The client picks its API origin by hostname: canonical → `location.origin`
+(same-origin, works); otherwise the `VITE_ROOMS_ORIGIN` baked in at build, else
+`location.origin`. The **preview** CI job bakes the canonical origin in; the
+**production** job ran `pnpm build:site` with no env, so the prod bundle served
+from pages.dev fell back to `location.origin` = pages.dev → POST to Pages → 405.
+It only ever worked on the canonical host.
+
+**Fix** (one workflow edit, mirrors preview): the production `build:site` step
+now passes `VITE_ROOMS_ORIGIN`/`VITE_AVATARS_ORIGIN = $CANONICAL_ORIGIN`. On the
+canonical host the var is ignored (still same-origin); on pages.dev the client
+now calls the canonical worker cross-origin (CORS is `*`). Worker attack surface
+is unchanged — still only reachable at the canonical host, still per-IP
+rate-limited. PR #13, merged; prod deploy green.
+
+**Verified live, the non-obvious way.** A raw `curl POST` to pages.dev/api/rooms
+*still* 405s and always will — pages.dev has no worker route; that's not the bug.
+What matters is what the *client JS on pages.dev* calls. Confirmed the deployed
+`/assets/play-*.js` chunk contains the inlined canonical origin and is
+byte-identical to a local `VITE_ROOMS_ORIGIN=…` build (Vite content-hashes
+filenames, so the deployed hash matching the env-built hash is itself the proof).
+Both hostnames now play. Lesson logged for the Field Guide: when a split
+Pages+Worker deploy throws 405 on a POST, suspect the hostname/route binding,
+not the handler.
