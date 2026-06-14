@@ -46,7 +46,18 @@ jobs:
       # The site is static and cheap to redeploy — always ship it. Both deploys
       # happen before the smoke test so a transient server issue (e.g. a Free
       # quota 429) can't block the independent site deploy.
+      #
+      # Bake the canonical Worker origin in even for the production build: the
+      # Pages site is reachable at BOTH retro-recall.pages.dev and the canonical
+      # host, but the /api and /room Worker routes only exist on the canonical
+      # host. On the canonical host the client uses location.origin (same-origin)
+      # and this var is ignored; on *.pages.dev it falls back to this var instead
+      # of location.origin (a POST to which 405s — Pages has no Worker route), so
+      # create/join/play work from either hostname. Mirrors the preview job.
       - run: pnpm build:site
+        env:
+          VITE_ROOMS_ORIGIN: ${{ env.CANONICAL_ORIGIN }}
+          VITE_AVATARS_ORIGIN: ${{ env.CANONICAL_ORIGIN }}
       - name: Deploy site (Cloudflare Pages)
         run: npx wrangler pages deploy dist-deploy --project-name retro-recall
 
