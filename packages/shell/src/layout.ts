@@ -67,6 +67,37 @@ export const controlBand = (freeBelow: number, min = MIN_CONTROL_BAND, max = MAX
 export const integerScale = (availWpx: number, availHpx: number, logicalW: number, logicalH: number): number =>
   Math.max(1, Math.floor(Math.min(availWpx / logicalW, availHpx / logicalH)));
 
+/**
+ * Run `cb` whenever the viewport changes — resize, rotate, and visualViewport
+ * shifts (URL bar, on-screen keyboard) — coalesced to one call per frame. A
+ * rotate also re-fires after a 200ms settle because iOS reports stale viewport
+ * sizes right at orientationchange. Every game (not just the ones using
+ * startLayout) shares this so rotation handling is authored once. Returns a
+ * teardown.
+ */
+export function onViewportChange(cb: () => void): () => void {
+  let raf = 0;
+  const schedule = (): void => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(cb);
+  };
+  const onRotate = (): void => {
+    schedule();
+    setTimeout(schedule, 200);
+  };
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', onRotate);
+  window.visualViewport?.addEventListener('resize', schedule);
+  window.visualViewport?.addEventListener('scroll', schedule);
+  return () => {
+    cancelAnimationFrame(raf);
+    window.removeEventListener('resize', schedule);
+    window.removeEventListener('orientationchange', onRotate);
+    window.visualViewport?.removeEventListener('resize', schedule);
+    window.visualViewport?.removeEventListener('scroll', schedule);
+  };
+}
+
 const place = (el: HTMLElement, x: number, y: number, w: number, h: number): void => {
   el.style.position = 'absolute';
   el.style.left = `${x}px`;
@@ -165,21 +196,9 @@ export function startLayout(refs: LayoutRefs, opts: LayoutOptions = {}): {
     opts.onChange?.(state);
   };
 
-  // Coalesce bursts (rotate fires resize + visualViewport + orientationchange).
-  let raf = 0;
-  const schedule = (): void => {
-    cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(relayout);
-  };
-  const onRotate = (): void => {
-    schedule();
-    // iOS reports stale viewport sizes right at orientationchange; settle later.
-    setTimeout(schedule, 200);
-  };
-  window.addEventListener('resize', schedule);
-  window.addEventListener('orientationchange', onRotate);
-  window.visualViewport?.addEventListener('resize', schedule);
-  window.visualViewport?.addEventListener('scroll', schedule);
+  // Coalesce bursts (rotate fires resize + visualViewport + orientationchange)
+  // and re-settle after iOS's stale post-rotate viewport — shared scheduler.
+  const stop = onViewportChange(relayout);
 
   relayout();
   // The first pass may have measured the hud before fonts/styles settled.
@@ -188,12 +207,6 @@ export function startLayout(refs: LayoutRefs, opts: LayoutOptions = {}): {
   return {
     relayout,
     current: () => state,
-    stop: () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', schedule);
-      window.removeEventListener('orientationchange', onRotate);
-      window.visualViewport?.removeEventListener('resize', schedule);
-      window.visualViewport?.removeEventListener('scroll', schedule);
-    },
+    stop,
   };
 }

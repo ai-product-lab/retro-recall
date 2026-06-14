@@ -9,6 +9,7 @@ import { Button } from '@retro-recall/retrokit/sim';
 import { RampRidersSim } from './sim/sim';
 import { RampRidersView } from './render/index';
 import { GAME_W, GAME_H, layoutCanvas, mountControls } from './shell/layout';
+import { installZoomGuard, onViewportChange } from '@retro-recall/shell';
 
 const TICK_MS = 1000 / 60;
 const KEYMAP: Record<string, number> = {
@@ -25,15 +26,17 @@ const canvas = document.querySelector<HTMLCanvasElement>('#game');
 const controls = document.querySelector<HTMLElement>('#controls');
 
 if (canvas) {
+  installZoomGuard();
   const r = new Canvas2DRenderer(canvas, GAME_W, GAME_H, 1);
   const view = new RampRidersView();
   layoutCanvas(canvas);
-  window.addEventListener('resize', () => layoutCanvas(canvas));
+  onViewportChange(() => layoutCanvas(canvas)); // rotate/resize/visualViewport + iOS settle
 
   const touchInput = controls ? mountControls(controls) : (): number => 0;
 
   let keyBits = 0;
   window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLElement && e.target.tagName === 'INPUT') return;
     const bit = KEYMAP[e.code];
     if (bit) {
       keyBits |= bit;

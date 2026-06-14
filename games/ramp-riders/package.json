@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@retro-recall/netcode": "workspace:*",
-    "@retro-recall/retrokit": "workspace:*"
+    "@retro-recall/retrokit": "workspace:*",
+    "@retro-recall/shell": "workspace:*"
   },
   "devDependencies": {
     "vite": "^7.1.0"

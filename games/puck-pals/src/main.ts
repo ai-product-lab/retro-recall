@@ -11,6 +11,7 @@ import { Button } from '@retro-recall/retrokit/sim';
 import { PuckPalsSim } from './sim/sim';
 import { render, followPuck, VIEW_W, VIEW_H } from './render/index';
 import { GAME_W, GAME_H, layoutCanvas, mountControls } from './shell/layout';
+import { installZoomGuard, onViewportChange } from '@retro-recall/shell';
 import { HeadStore, headResolver } from './avatar/heads';
 import { galleryId } from '@retro-recall/avatar';
 
@@ -41,15 +42,17 @@ const canvas = document.querySelector<HTMLCanvasElement>('#game');
 const controls = document.querySelector<HTMLElement>('#controls');
 
 if (canvas) {
+  installZoomGuard();
   const r = new Canvas2DRenderer(canvas, GAME_W, GAME_H, 1);
   layoutCanvas(canvas);
-  window.addEventListener('resize', () => layoutCanvas(canvas));
+  onViewportChange(() => layoutCanvas(canvas)); // rotate/resize/visualViewport + iOS settle
 
   const pad = controls ? mountControls(controls) : null;
   const localIds = hotseat ? [0, 10] : [0];
 
   const keys = new Set<string>();
   window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLElement && e.target.tagName === 'INPUT') return;
     if (e.code in P1 || e.code in P2) {
       keys.add(e.code);
       e.preventDefault();

@@ -14,7 +14,7 @@ import { PuckPalsSim } from './sim/sim';
 import { render, followPuck, VIEW_W, VIEW_H } from './render/index';
 import { NetView } from './net/view';
 import { GAME_W, GAME_H, layoutCanvas, mountControls, type TouchPad } from './shell/layout';
-import { applyInputMode } from './shell/device';
+import { applyInputMode, installZoomGuard, onViewportChange } from '@retro-recall/shell';
 import { HeadStore, headResolver } from './avatar/heads';
 import { setupAvatarPicker } from './avatar/picker';
 import {
@@ -65,6 +65,17 @@ function statusLine(text: string, bad = false): void {
 
 async function main(): Promise<void> {
   const inputMode = applyInputMode();
+  installZoomGuard(); // kill double-tap / pinch zoom across the play route
+
+  // Re-surface the lobby overlay with a retry on a dead-end (full / gave up).
+  const showFatal = (title: string, detail: string): void => {
+    const overlay = $('#name-overlay');
+    overlay.innerHTML =
+      `<div class="overlay-card"><div class="banner warn"><strong>${title}</strong><br />${detail}</div>` +
+      `<button id="retry-btn" class="chip-btn primary">Try again</button></div>`;
+    overlay.classList.remove('hidden');
+    $('#retry-btn').addEventListener('click', () => location.reload());
+  };
 
   if (isInAppBrowser()) {
     $('#inapp-banner').classList.remove('hidden');
@@ -138,6 +149,7 @@ async function main(): Promise<void> {
   };
 
   let reconnectTries = 0;
+  let reconnectTimer = 0;
   const client = new RoomClient<PuckPalsSim>({
     connect: makeTransport,
     createSim: () => new PuckPalsSim(0),
@@ -154,13 +166,16 @@ async function main(): Promise<void> {
           statusLine('connecting…');
         } else if (ev.status === 'full') {
           statusLine('room is full (4 skaters + 4 watchers)', true);
+          showFatal('This room is full', 'It already has 4 skaters and 4 watchers.');
         } else if (ev.status === 'disconnected') {
           if (reconnectTries < 8) {
             reconnectTries++;
             statusLine(`connection lost — reconnecting (try ${reconnectTries})…`, true);
-            setTimeout(() => client.reconnect(), 1200 * reconnectTries);
+            clearTimeout(reconnectTimer);
+            reconnectTimer = window.setTimeout(() => client.reconnect(), 1200 * reconnectTries);
           } else {
             statusLine('disconnected — reload to rejoin', true);
+            showFatal('Disconnected', 'We couldn’t reach the room after several tries.');
           }
         }
       } else if (ev.kind === 'peers') {
@@ -176,13 +191,15 @@ async function main(): Promise<void> {
   const canvas = $<HTMLCanvasElement>('#game');
   const renderer = new Canvas2DRenderer(canvas, GAME_W, GAME_H, 1);
   layoutCanvas(canvas);
-  window.addEventListener('resize', () => layoutCanvas(canvas));
+  onViewportChange(() => layoutCanvas(canvas)); // rotate/resize/visualViewport + iOS settle
 
   let pad: TouchPad | null = null;
   if (inputMode === 'touch') pad = mountControls($('#controls'));
 
   const keys = new Set<string>();
   window.addEventListener('keydown', (e) => {
+    // Don't steal arrows/Enter from the join-code / name input.
+    if (e.target instanceof HTMLElement && e.target.tagName === 'INPUT') return;
     if (e.code in KEYS) {
       keys.add(e.code);
       e.preventDefault();

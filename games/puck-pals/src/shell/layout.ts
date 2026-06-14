@@ -4,12 +4,30 @@
  * NES-style bitmask — the sim never knows fingers exist. Two zones: an 8-way
  * skate pad and two action buttons whose labels swap with possession
  * (Pass/Shoot while carrying, Check otherwise). CSS reflows them per orientation.
+ *
+ * The pointer plumbing (multi-touch capture, focus-loss release) and the octant
+ * math come from @retro-recall/shell — Puck Pals only describes its surface
+ * (round skate stick + action buttons), not how touches are tracked.
  */
 import { Button } from '@retro-recall/retrokit/sim';
+import {
+  bindMomentaryButton,
+  createOctantPad,
+  prefersTouchUI,
+  suppressGestures,
+  type OctantBitset,
+} from '@retro-recall/shell';
 
 /** Logical render resolution = the camera view (one screen). */
 export const GAME_W = 256;
 export const GAME_H = 192;
+
+const CARDINALS: OctantBitset = {
+  up: Button.Up,
+  down: Button.Down,
+  left: Button.Left,
+  right: Button.Right,
+};
 
 export interface TouchPad {
   sample(): number;
@@ -29,65 +47,20 @@ export function layoutCanvas(canvas: HTMLCanvasElement): void {
   canvas.style.width = GAME_W * scale + 'px';
   canvas.style.height = GAME_H * scale + 'px';
   document.body.dataset['orientation'] = portrait ? 'portrait' : 'landscape';
-  document.body.dataset['input'] =
-    window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
-      ? 'touch'
-      : 'keyboard';
+  document.body.dataset['input'] = prefersTouchUI() ? 'touch' : 'keyboard';
 }
-
-const OCTANT_BITS: readonly number[] = [
-  Button.Right,
-  Button.Right | Button.Down,
-  Button.Down,
-  Button.Down | Button.Left,
-  Button.Left,
-  Button.Left | Button.Up,
-  Button.Up,
-  Button.Up | Button.Right,
-];
 
 /** Build touch controls into `root`; pointer-tracked so move + act overlap. */
 export function mountControls(root: HTMLElement): TouchPad {
   root.innerHTML = '';
 
-  // --- 8-way skate pad ---
+  // --- 8-way skate pad (shared octant primitive) ---
   const pad = document.createElement('div');
   pad.className = 'ctl-zone skate';
   const knob = document.createElement('div');
   knob.className = 'skate-knob';
   pad.append(knob);
-
-  const padPointers = new Map<number, number>();
-  let padBits = 0;
-  const padVector = (e: PointerEvent): number => {
-    const r = pad.getBoundingClientRect();
-    const dx = e.clientX - (r.left + r.width / 2);
-    const dy = e.clientY - (r.top + r.height / 2);
-    const dead = Math.max(10, r.width * 0.14);
-    if (Math.hypot(dx, dy) < dead) return 0;
-    const octant = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-    return OCTANT_BITS[octant]!;
-  };
-  const refreshPad = (): void => {
-    padBits = 0;
-    for (const b of padPointers.values()) padBits |= b;
-  };
-  pad.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    pad.setPointerCapture(e.pointerId);
-    padPointers.set(e.pointerId, padVector(e));
-    refreshPad();
-  });
-  pad.addEventListener('pointermove', (e) => {
-    if (!padPointers.has(e.pointerId)) return;
-    padPointers.set(e.pointerId, padVector(e));
-    refreshPad();
-  });
-  const padUp = (e: PointerEvent): void => {
-    if (padPointers.delete(e.pointerId)) refreshPad();
-  };
-  pad.addEventListener('pointerup', padUp);
-  pad.addEventListener('pointercancel', padUp);
+  const stick = createOctantPad(pad, pad, { bits: CARDINALS, deadzoneRatio: 0.14 });
 
   // --- Action buttons (labels swap with possession) ---
   const actions = document.createElement('div');
@@ -97,58 +70,33 @@ export function mountControls(root: HTMLElement): TouchPad {
   const aBtn = document.createElement('button');
   aBtn.className = 'ctl act-a';
   actions.append(bBtn, aBtn);
-
-  const btnPointers = new Map<number, number>();
-  let btnBits = 0;
-  const bind = (el: HTMLButtonElement, bit: number): void => {
-    el.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      el.setPointerCapture(e.pointerId);
-      btnPointers.set(e.pointerId, bit);
-      el.classList.add('held');
-      btnBits = 0;
-      for (const b of btnPointers.values()) btnBits |= b;
-    });
-    const up = (e: PointerEvent): void => {
-      if (!btnPointers.delete(e.pointerId)) return;
-      el.classList.remove('held');
-      btnBits = 0;
-      for (const b of btnPointers.values()) btnBits |= b;
-    };
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-  };
-  bind(bBtn, Button.B);
-  bind(aBtn, Button.A);
+  const bBind = bindMomentaryButton(bBtn);
+  const aBind = bindMomentaryButton(aBtn);
 
   root.append(pad, actions);
-  [pad, actions].forEach((z) => {
-    z.style.touchAction = 'none';
-    z.addEventListener('contextmenu', (e) => e.preventDefault());
-  });
+  suppressGestures(actions);
 
-  const setCarrying = (carrying: boolean): void => {
-    bBtn.textContent = carrying ? 'SHOOT' : 'CHECK';
-    aBtn.textContent = carrying ? 'PASS' : '';
-    aBtn.classList.toggle('dim', !carrying);
+  let carrying = false;
+  const setCarrying = (c: boolean): void => {
+    carrying = c;
+    bBtn.textContent = c ? 'SHOOT' : 'CHECK';
+    aBtn.textContent = c ? 'PASS' : '';
+    aBtn.classList.toggle('dim', !c);
+    // Disable PASS when there's nothing to pass — a disabled button receives no
+    // pointer events, so a thumb resting there no longer fires no-op A presses.
+    aBtn.disabled = !c;
+    if (!c) aBind.release();
   };
   setCarrying(false);
 
-  const onBlur = (): void => {
-    padPointers.clear();
-    btnPointers.clear();
-    refreshPad();
-    btnBits = 0;
-    bBtn.classList.remove('held');
-    aBtn.classList.remove('held');
-  };
-  window.addEventListener('blur', onBlur);
-
   return {
-    sample: () => padBits | btnBits,
+    sample: () =>
+      stick.sample() | (bBind.held() ? Button.B : 0) | (carrying && aBind.held() ? Button.A : 0),
     setCarrying,
     destroy: () => {
-      window.removeEventListener('blur', onBlur);
+      stick.destroy();
+      bBind.destroy();
+      aBind.destroy();
       pad.remove();
       actions.remove();
     },
