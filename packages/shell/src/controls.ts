@@ -17,6 +17,7 @@
 import { Button } from '@retro-recall/retrokit/sim';
 import { suppressGestures } from './gestures';
 import { createOctantPad, onRelease, type OctantBitset } from './touch';
+import { attachIdleFade, type IdleFadeOptions } from './fade';
 
 export interface TouchControls {
   /** Combined bitmask of everything currently held. */
@@ -39,8 +40,13 @@ export interface TouchControlOptions {
   onB?: (down: boolean) => void;
   /** Override the action buttons (DOM order). Defaults to B then A. */
   buttons?: ButtonSpec[];
-  /** Override the d-pad direction mapping. Defaults to the four cardinals. */
+  /** Override the d-pad / stick direction mapping. Defaults to the four cardinals. */
   dpadBits?: OctantBitset;
+  /** Movement control style. 'stick' = round analog-feel pad with a knob that
+   *  follows the thumb (ADR-012 default); 'cross' = the classic 4-arm d-pad. */
+  style?: 'stick' | 'cross';
+  /** Fade the overlaid controls when idle (ADR-012). `true` for defaults. */
+  fade?: boolean | IdleFadeOptions;
 }
 
 /** Backwards-compatible alias — callers used to pass `{ onB }`. */
@@ -63,24 +69,37 @@ export function createTouchControls(
   buttonZone: HTMLElement,
   opts: TouchControlOptions = {},
 ): TouchControls {
-  // --- D-pad (shared octant pad primitive) ---
-  const dpad = document.createElement('div');
-  dpad.className = 'dpad';
-  const arms = ARM_NAMES.map((name) => {
-    const arm = document.createElement('div');
-    arm.className = `dpad-arm ${name}`;
-    return arm;
-  });
-  const hub = document.createElement('div');
-  hub.className = 'dpad-hub';
-  dpad.append(...arms, hub);
-  dpadZone.append(dpad);
-
-  const pad = createOctantPad(dpadZone, dpad, {
-    bits: opts.dpadBits ?? CARDINALS,
-    onChange: (bits) =>
-      arms.forEach((arm, i) => arm.classList.toggle('held', (bits & ARM_BITS[i]!) !== 0)),
-  });
+  // --- Movement: round stick (default) or classic cross d-pad ---
+  const style = opts.style ?? 'stick';
+  let dpad: HTMLElement;
+  let pad: ReturnType<typeof createOctantPad>;
+  if (style === 'stick') {
+    // Round analog-feel pad: a ring with a knob that follows the thumb.
+    dpad = document.createElement('div');
+    dpad.className = 'stick';
+    const knob = document.createElement('div');
+    knob.className = 'stick-knob';
+    dpad.append(knob);
+    dpadZone.append(dpad);
+    pad = createOctantPad(dpadZone, dpad, { bits: opts.dpadBits ?? CARDINALS, analogKnob: knob });
+  } else {
+    dpad = document.createElement('div');
+    dpad.className = 'dpad';
+    const arms = ARM_NAMES.map((name) => {
+      const arm = document.createElement('div');
+      arm.className = `dpad-arm ${name}`;
+      return arm;
+    });
+    const hub = document.createElement('div');
+    hub.className = 'dpad-hub';
+    dpad.append(...arms, hub);
+    dpadZone.append(dpad);
+    pad = createOctantPad(dpadZone, dpad, {
+      bits: opts.dpadBits ?? CARDINALS,
+      onChange: (bits) =>
+        arms.forEach((arm, i) => arm.classList.toggle('held', (bits & ARM_BITS[i]!) !== 0)),
+    });
+  }
 
   // --- A / B buttons ---
   const specs: ButtonSpec[] = opts.buttons ?? [
@@ -171,10 +190,16 @@ export function createTouchControls(
   };
   const stopRelease = onRelease(releaseAll);
 
+  // Idle-fade the overlaid controls so the map shows through (ADR-012).
+  const stopFade = opts.fade
+    ? attachIdleFade([dpadZone, buttonZone], opts.fade === true ? {} : opts.fade)
+    : null;
+
   return {
     sample: () => pad.sample() | buttonBits,
     destroy: () => {
       stopRelease();
+      stopFade?.();
       pad.destroy();
       buttonZone.removeEventListener('pointerdown', onDown);
       buttonZone.removeEventListener('pointermove', onMove);

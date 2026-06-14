@@ -39,6 +39,18 @@ export function octantBits(dx: number, dy: number, deadzone: number, bits: Octan
   return table[octant]!;
 }
 
+/**
+ * Pure: clamp a finger vector to a max travel radius, for positioning an analog
+ * knob that follows the thumb (the visual is analog; the emitted bits are still
+ * 8-way). Returns the (possibly shortened) offset. Exported for tests.
+ */
+export function knobOffset(dx: number, dy: number, maxRadius: number): { x: number; y: number } {
+  const d = Math.hypot(dx, dy);
+  if (d <= maxRadius || d === 0) return { x: dx, y: dy };
+  const s = maxRadius / d;
+  return { x: dx * s, y: dy * s };
+}
+
 /** Subscribe to the three "the OS took focus, drop everything held" signals.
  *  Returns a teardown. */
 export function onRelease(handler: () => void): () => void {
@@ -68,6 +80,12 @@ export interface OctantPadOptions {
   minDeadzone?: number;
   /** Called whenever the held direction changes (for visual feedback). */
   onChange?: (bits: number) => void;
+  /** A knob element that follows the finger (analog-stick feel). Translated via
+   *  CSS transform within `knobTravel` of the pad radius; springs to center on
+   *  release. Purely visual — output stays 8-way. */
+  analogKnob?: HTMLElement;
+  /** Knob travel as a fraction of pad width (default 0.3). */
+  knobTravel?: number;
 }
 
 /**
@@ -80,7 +98,7 @@ export function createOctantPad(
   padEl: HTMLElement,
   opts: OctantPadOptions,
 ): OctantPad {
-  const { bits, deadzoneRatio = 0.12, minDeadzone = 10, onChange } = opts;
+  const { bits, deadzoneRatio = 0.12, minDeadzone = 10, onChange, analogKnob, knobTravel = 0.3 } = opts;
   const pointers = new Map<number, number>();
   let held = 0;
 
@@ -92,10 +110,20 @@ export function createOctantPad(
       onChange?.(held);
     }
   };
+  /** Read the finger vector from pad center; also nudge the knob if present. */
   const vector = (e: PointerEvent): number => {
     const r = padEl.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    if (analogKnob) {
+      const { x, y } = knobOffset(dx, dy, r.width * knobTravel);
+      analogKnob.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    }
     const dead = Math.max(minDeadzone, r.width * deadzoneRatio);
-    return octantBits(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2), dead, bits);
+    return octantBits(dx, dy, dead, bits);
+  };
+  const recenterKnob = (): void => {
+    if (analogKnob && pointers.size === 0) analogKnob.style.transform = 'translate(0px, 0px)';
   };
   const onDown = (e: PointerEvent): void => {
     e.preventDefault();
@@ -115,12 +143,16 @@ export function createOctantPad(
     refresh();
   };
   const onUp = (e: PointerEvent): void => {
-    if (pointers.delete(e.pointerId)) refresh();
+    if (pointers.delete(e.pointerId)) {
+      refresh();
+      recenterKnob();
+    }
   };
   const releaseAll = (): void => {
     if (pointers.size === 0) return;
     pointers.clear();
     refresh();
+    recenterKnob();
   };
 
   zone.addEventListener('pointerdown', onDown);

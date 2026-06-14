@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { octantBits, type OctantBitset } from './touch';
+import { knobOffset, octantBits, type OctantBitset } from './touch';
 
 // Distinct power-of-two bits so combined diagonals are unambiguous.
 const B: OctantBitset = { up: 1, down: 2, left: 4, right: 8 };
@@ -25,5 +25,21 @@ describe('octantBits — deadzone', () => {
   });
   it('activates exactly at the deadzone edge', () => {
     expect(octantBits(5, 0, 5, B)).toBe(B.right);
+  });
+});
+
+describe('knobOffset — analog knob travel clamp', () => {
+  it('passes through vectors within the max radius', () => {
+    expect(knobOffset(10, 0, 40)).toEqual({ x: 10, y: 0 });
+    expect(knobOffset(0, 0, 40)).toEqual({ x: 0, y: 0 });
+  });
+  it('clamps a long vector to the max radius, preserving direction', () => {
+    const o = knobOffset(300, 0, 40);
+    expect(o).toEqual({ x: 40, y: 0 });
+  });
+  it('clamps diagonals to the radius (length === maxRadius)', () => {
+    const o = knobOffset(100, 100, 50);
+    expect(Math.hypot(o.x, o.y)).toBeCloseTo(50, 6);
+    expect(o.x).toBeCloseTo(o.y, 6);
   });
 });
