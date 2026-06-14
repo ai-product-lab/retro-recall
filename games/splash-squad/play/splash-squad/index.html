@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1" />
     <meta name="theme-color" content="#0F1222" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -16,15 +16,27 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
+        /* flex-start + scroll: on short/landscape screens the avatar grid + name
+           + JOIN overflow, so the overlay must scroll (centering would clip the
+           top and strand JOIN off-screen). pan-y re-enables touch scroll, which
+           body{touch-action:none} otherwise suppresses. */
+        justify-content: flex-start;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
         gap: 12px;
         background: #0f1222;
         color: #f2efe9;
         font-family: system-ui, sans-serif;
         text-align: center;
-        padding: 24px;
+        padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+          max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
         z-index: 20;
       }
+      /* Keep the lobby vertically centered when it does fit, without breaking
+         scroll when it doesn't. */
+      #name-overlay::before,
+      #name-overlay::after { content: ''; margin: auto; }
       #name-overlay.hidden { display: none; }
       #name-overlay h1 { color: #3df5a6; letter-spacing: 1px; }
       #name-overlay input {
@@ -50,7 +62,7 @@
       #status { color: #f2efe9; font-size: 13px; min-height: 16px; }
       #status.bad { color: #ff6b6b; }
       .hud-row { display: flex; gap: 10px; align-items: center; }
-      #share { background: none; border: 1px solid #4cc9f0; color: #4cc9f0; border-radius: 6px; padding: 2px 8px; }
+      #share { background: none; border: 1px solid #4cc9f0; color: #4cc9f0; border-radius: 6px; padding: 8px 14px; min-height: 44px; }
       #avatar-pick { display: flex; flex-direction: column; align-items: center; gap: 8px; }
       .avatar-label { font-size: 13px; color: #8a8fa3; margin: 0; }
       #avatar-options { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 360px; }

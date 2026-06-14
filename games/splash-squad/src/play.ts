@@ -22,10 +22,12 @@ import { setupAvatarPicker } from './avatar/picker';
 import {
   applyInputMode,
   createTouchControls,
+  installZoomGuard,
+  resumeAudioOnVisible,
   startLayout,
   type TouchControls,
 } from '@retro-recall/shell';
-import { unlockAudio } from './shell/audio';
+import { audioContext, unlockAudio } from './shell/audio';
 import { SfxObserver } from './shell/sfx';
 import { createRoom, fetchRoomInfo, isRoomCodeLike, shareInvite, wsUrl } from './shell/invite';
 
@@ -56,15 +58,29 @@ async function resolveRoomCode(): Promise<string> {
 
 async function main(): Promise<void> {
   const inputMode = applyInputMode();
+  installZoomGuard(); // kill double-tap / pinch zoom across the whole play route
+  resumeAudioOnVisible(audioContext); // sound shouldn't die after backgrounding
   const code = await resolveRoomCode();
   $('#room-code').textContent = code;
+
+  // Re-surface the lobby overlay with a retry on a dead-end (full / gave up).
+  const showFatal = (title: string, detail: string): void => {
+    const overlay = $('#name-overlay');
+    overlay.innerHTML =
+      `<h1>${title}</h1><p>${detail}</p>` +
+      `<button id="retry-btn">Try again</button>`;
+    overlay.classList.remove('hidden');
+    $('#retry-btn').addEventListener('click', () => location.reload());
+  };
 
   $('#share').addEventListener('click', () => {
     const url = new URL(location.href);
     url.search = `?room=${code}`;
-    void shareInvite(url.toString()).then((how) =>
-      status(how === 'copied' ? 'link copied — paste it into the call chat' : ''),
-    );
+    void shareInvite(url.toString()).then((how) => {
+      if (how === 'copied') status('link copied — paste it into the call chat');
+      else if (how === 'failed') status('couldn’t copy — long-press the address bar to share', true);
+      else status('');
+    });
   });
 
   const info = await fetchRoomInfo(code);
@@ -112,6 +128,7 @@ async function main(): Promise<void> {
   };
 
   let reconnectTries = 0;
+  let reconnectTimer = 0;
   const client = new RoomClient<SplashSquadSim>({
     connect: makeTransport,
     createSim: () => new SplashSquadSim(0, 0, 0),
@@ -132,13 +149,16 @@ async function main(): Promise<void> {
         status('connecting…');
       } else if (ev.status === 'full') {
         status('room is full (4 players + 4 watchers)', true);
+        showFatal('This room is full', 'It already has 4 players and 4 watchers.');
       } else if (ev.status === 'disconnected') {
         if (reconnectTries < 8) {
           reconnectTries++;
           status(`connection lost — reconnecting (try ${reconnectTries})…`, true);
-          setTimeout(() => client.reconnect(), 1200 * reconnectTries);
+          clearTimeout(reconnectTimer);
+          reconnectTimer = window.setTimeout(() => client.reconnect(), 1200 * reconnectTries);
         } else {
           status('disconnected — reload to rejoin', true);
+          showFatal('Disconnected', 'We couldn’t reach the room after several tries.');
         }
       }
     },

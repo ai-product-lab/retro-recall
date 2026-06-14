@@ -24,12 +24,14 @@ import { EmoteWheel, EMOTE_GLYPHS } from './shell/emote-wheel';
 import {
   applyInputMode,
   createTouchControls,
+  installZoomGuard,
+  resumeAudioOnVisible,
   startLayout,
   type TouchControls,
 } from '@retro-recall/shell';
 import { AvatarStore, type AvatarSprite } from './avatar/store';
 import { setupAvatarPicker } from './avatar/picker';
-import { unlockAudio } from './shell/audio';
+import { audioContext, unlockAudio } from './shell/audio';
 import { registerServiceWorker } from './shell/pwa';
 import {
   createRoom,
@@ -69,6 +71,8 @@ function statusLine(text: string, bad = false): void {
 
 async function main(): Promise<void> {
   const inputMode = applyInputMode();
+  installZoomGuard(); // kill double-tap / pinch zoom across the whole play route
+  resumeAudioOnVisible(audioContext); // sound shouldn't die after backgrounding
   registerServiceWorker();
 
   // In-app browser escape (ADR-008): show before anything else.
@@ -88,9 +92,11 @@ async function main(): Promise<void> {
   $('#share').addEventListener('click', () => {
     const url = new URL(location.href);
     url.search = `?room=${code}`;
-    void shareInvite(url.toString()).then((how) =>
-      statusLine(how === 'copied' ? 'link copied — paste it into the call chat' : ''),
-    );
+    void shareInvite(url.toString()).then((how) => {
+      if (how === 'copied') statusLine('link copied — paste it into the call chat');
+      else if (how === 'failed') statusLine('couldn’t copy — long-press the address bar to share', true);
+      else statusLine('');
+    });
   });
 
   // Pre-join roster so you can see who's already in.
@@ -144,7 +150,19 @@ async function main(): Promise<void> {
     return lagMs > 0 ? new LagTransport(ws, { delayMs: lagMs }) : ws;
   };
 
+  // Re-surface the lobby overlay with a retry on a dead-end (full / gave up),
+  // so the player isn't stranded on a blank canvas.
+  const showFatal = (title: string, detail: string): void => {
+    const overlay = $('#name-overlay');
+    overlay.innerHTML =
+      `<div class="overlay-card"><div class="banner warn"><strong>${title}</strong><br />${detail}</div>` +
+      `<button id="retry-btn" class="chip-btn primary">Try again</button></div>`;
+    overlay.classList.remove('hidden');
+    $('#retry-btn').addEventListener('click', () => location.reload());
+  };
+
   let reconnectTries = 0;
+  let reconnectTimer = 0;
   const client = new RoomClient<BubbleBuddiesSim>({
     connect: makeTransport,
     createSim: () => new BubbleBuddiesSim(0, 0, 0),
@@ -161,13 +179,16 @@ async function main(): Promise<void> {
           statusLine('connecting…');
         } else if (ev.status === 'full') {
           statusLine('room is full (4 players + 4 watchers)', true);
+          showFatal('This room is full', 'It already has 4 players and 4 watchers.');
         } else if (ev.status === 'disconnected') {
           if (reconnectTries < 8) {
             reconnectTries++;
             statusLine(`connection lost — reconnecting (try ${reconnectTries})…`, true);
-            setTimeout(() => client.reconnect(), 1200 * reconnectTries);
+            clearTimeout(reconnectTimer);
+            reconnectTimer = window.setTimeout(() => client.reconnect(), 1200 * reconnectTries);
           } else {
             statusLine('disconnected — reload to rejoin', true);
+            showFatal('Disconnected', 'We couldn’t reach the room after several tries.');
           }
         }
       } else if (ev.kind === 'peers') {
@@ -192,7 +213,8 @@ async function main(): Promise<void> {
     touch = createTouchControls($('#dpad'), $('#abzone'), {
       // Release is also handled by the wheel's global pointerup listener;
       // wheel.release() is idempotent so the double call is harmless.
-      onB: (down) => (down ? wheel.holdStart() : wheel.release()),
+      // holdStart(true): open the wheel at the finger, not screen-center.
+      onB: (down) => (down ? wheel.holdStart(true) : wheel.release()),
     });
   }
   startLayout(
