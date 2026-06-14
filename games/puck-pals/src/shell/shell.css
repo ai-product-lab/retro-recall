@@ -225,3 +225,28 @@ kbd {
   color: var(--paper);
 }
 #online-status { min-height: 1em; margin: 0; text-align: center; }
+
+/* --- Avatar picker (online name overlay) --- */
+.avatar-pick { display: flex; flex-direction: column; gap: 8px; }
+.avatar-row { display: flex; align-items: center; gap: 8px; justify-content: center; }
+.avatar-label { font-size: 12px; color: var(--dim); }
+#avatar-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.avatar-opt {
+  padding: 2px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--midnight);
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.avatar-opt canvas { width: 40px; height: 40px; image-rendering: pixelated; }
+.avatar-opt.selected { border-color: var(--phosphor); box-shadow: 0 0 0 1px var(--phosphor); }
+.avatar-opt.broken { opacity: 0.3; }
+#avatar-status { min-height: 1em; margin: 0; text-align: center; }
