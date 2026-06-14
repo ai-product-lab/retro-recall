@@ -17,6 +17,8 @@ import { SCREEN_H, SCREEN_W } from './sim/constants';
 import { SplashSquadSim } from './sim/sim';
 import { render } from './render/index';
 import { NetView } from './net/view';
+import { AvatarStore, type AvatarSprite } from './avatar/store';
+import { setupAvatarPicker } from './avatar/picker';
 import {
   applyInputMode,
   createTouchControls,
@@ -70,6 +72,20 @@ async function main(): Promise<void> {
     $('#roster').textContent = `already here: ${info.players.map((p) => p.name).join(', ')}`;
   }
 
+  // Avatar picker: a buddy is always pre-selected, so JOIN is never blocked (a
+  // gallery creature stands in when there's no camera / worker / photo).
+  const avatars = new AvatarStore();
+  const picker = setupAvatarPicker(
+    {
+      options: $('#avatar-options'),
+      photoBtn: $<HTMLButtonElement>('#avatar-photo'),
+      fileInput: $<HTMLInputElement>('#avatar-file'),
+      status: $('#avatar-status'),
+    },
+    avatars,
+    code,
+  );
+
   const nameInput = $<HTMLInputElement>('#name-input');
   nameInput.value = localStorage.getItem('ss-name') ?? '';
   await new Promise<void>((resolve) => {
@@ -85,6 +101,8 @@ async function main(): Promise<void> {
   });
   const playerName = nameInput.value.trim().slice(0, 12);
   localStorage.setItem('ss-name', playerName);
+  const avatarId = picker.getAvatarId();
+  avatars.ensure(avatarId); // warm your own buddy before the first frame
   $('#name-overlay').classList.add('hidden');
 
   const tokenKey = `ss-token-${code}`;
@@ -98,8 +116,13 @@ async function main(): Promise<void> {
     connect: makeTransport,
     createSim: () => new SplashSquadSim(0, 0, 0),
     playerName,
+    avatarId,
     rejoinToken: sessionStorage.getItem(tokenKey) ?? undefined,
     onEvent: (ev) => {
+      if (ev.kind === 'peers') {
+        for (const peer of ev.slots) avatars.ensure(peer?.avatarId); // warm teammates' buddies
+        return;
+      }
       if (ev.kind !== 'status') return;
       if (ev.status === 'active') {
         reconnectTries = 0;
@@ -147,7 +170,12 @@ async function main(): Promise<void> {
     render: () => {
       const v = view.frame(performance.now());
       if (v) {
-        render(renderer, v);
+        const sprites = new Map<number, AvatarSprite>();
+        client.peers.forEach((peer, slot) => {
+          const s = avatars.get(peer?.avatarId);
+          if (s) sprites.set(slot, s);
+        });
+        render(renderer, v, { localSlot: client.slot, sprites });
         sfx.observe(v);
       }
     },

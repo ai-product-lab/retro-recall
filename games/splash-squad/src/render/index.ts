@@ -8,9 +8,19 @@
 import { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import { Camera, visibleTileRange } from '@retro-recall/retrokit/camera';
 import { SUBPX, Tile, TileMap } from '@retro-recall/retrokit/sim';
+import type { PoseName } from '@retro-recall/avatar';
 import * as C from '../sim/constants';
 import { LEVELS } from '../sim/levels';
+import type { AvatarSprite } from '../avatar/store';
 import type { BossState, GameState, NozzleId, PlayerState } from '../sim/sim';
+
+/** Shell-owned extras drawn on top of sim state (online play supplies these). */
+export interface RenderOverlay {
+  /** Slot that is "you" (gets a small marker). */
+  localSlot?: number;
+  /** Loaded avatar sheets by slot; a missing slot draws the placeholder. */
+  sprites?: ReadonlyMap<number, AvatarSprite>;
+}
 
 // Brand palette (branding/BRAND.md).
 const MIDNIGHT = '#0f1222';
@@ -48,7 +58,49 @@ const levelMap = (index: number): TileMap => {
 
 const px = (v: number): number => Math.floor(v / SUBPX);
 
-export function render(r: Canvas2DRenderer, state: GameState): void {
+/** Per-slot last drawn world-x, so we can tell walk from idle (sim has no vx). */
+const lastDrawX = new Map<number, number>();
+
+/** Pick a pose from the player's state (shared rig: idle/walk/jump/blow/rescue). */
+function poseFor(p: PlayerState, slot: number): PoseName {
+  if (p.phase === 'bubble') return 'rescue';
+  if (!p.grounded) return 'jump';
+  if (p.fireCooldown > 0) return 'blow'; // firing — reuse the rig's "blow" pose
+  const moved = lastDrawX.has(slot) && lastDrawX.get(slot) !== px(p.x);
+  return moved ? 'walk' : 'idle';
+}
+
+/** Resolve a pose to a concrete sheet frame for this tick (animation is cosmetic). */
+function frameIndex(sprite: AvatarSprite, pose: PoseName, tick: number, vy: number): number {
+  const ps = sprite.poses[pose];
+  if (pose === 'jump') return ps.start + (vy < 0 ? 0 : 1); // ascend / descend
+  return ps.start + (Math.floor((tick * ps.fps) / 60) % ps.count);
+}
+
+/** Blit one frame, mirrored for left-facing (rigs are authored facing right). */
+function drawAvatar(
+  r: Canvas2DRenderer,
+  sprite: AvatarSprite,
+  frame: number,
+  dx: number,
+  dy: number,
+  facing: 1 | -1,
+): void {
+  const fs = sprite.frameSize;
+  const sx = frame * fs;
+  const ctx = r.ctx;
+  if (facing === -1) {
+    ctx.save();
+    ctx.translate(dx + fs, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(sprite.bitmap, sx, 0, fs, fs, 0, 0, fs, fs);
+    ctx.restore();
+  } else {
+    ctx.drawImage(sprite.bitmap, sx, 0, fs, fs, dx, dy, fs, fs);
+  }
+}
+
+export function render(r: Canvas2DRenderer, state: GameState, overlay: RenderOverlay = {}): void {
   const map = levelMap(state.level);
   const world = { w: map.pixelWidth, h: map.pixelHeight };
   camera.pinX(state.scrollX, world); // sim owns the scroll; the view just follows
@@ -119,35 +171,59 @@ export function render(r: Canvas2DRenderer, state: GameState): void {
   // Players.
   state.players.forEach((p, slot) => {
     if (!p || p.phase === 'pending' || p.phase === 'despawned') return;
-    drawPlayer(r, p, slot, cx);
+    drawPlayer(r, state, p, slot, cx, overlay.sprites?.get(slot), overlay.localSlot === slot);
   });
 
   drawHud(r, state);
   drawBanner(r, state);
 }
 
-function drawPlayer(r: Canvas2DRenderer, p: PlayerState, slot: number, cx: number): void {
+function drawPlayer(
+  r: Canvas2DRenderer,
+  state: GameState,
+  p: PlayerState,
+  slot: number,
+  cx: number,
+  sprite: AvatarSprite | undefined,
+  isLocal: boolean,
+): void {
   const tint = SLOT_TINT[slot % SLOT_TINT.length]!;
   const x = px(p.x) - cx;
   const y = px(p.y);
+
   if (p.phase === 'bubble') {
-    // Rescue bubble — a teammate pops it to revive (§11).
-    r.circleOutline(x + C.RESCUE_HITBOX / 2, y + C.RESCUE_HITBOX / 2, C.RESCUE_HITBOX / 2, tint, 2);
+    // Rescue bubble — your buddy squished inside, drifting up; a teammate pops it (§11).
+    const bcx = x + C.RESCUE_HITBOX / 2;
+    const bcy = y + C.RESCUE_HITBOX / 2;
+    if (sprite) {
+      const f = frameIndex(sprite, 'rescue', state.tick, p.vy);
+      drawAvatar(r, sprite, f, bcx - sprite.frameSize / 2, bcy - sprite.frameSize / 2, p.facing);
+    }
+    r.circleOutline(bcx, bcy, C.RESCUE_HITBOX / 2, tint, 2);
     return;
   }
+
   // Blink while invulnerable.
-  if (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 === 0) return;
-  const h = p.crouch ? C.CROUCH_HITBOX_H : C.PLAYER_HITBOX_H;
-  const top = y + (C.PLAYER_HITBOX_H - h);
-  r.rect(x, top, C.PLAYER_HITBOX_W, h, tint);
-  // Blaster nozzle nub in the facing direction.
-  const nx = p.facing === 1 ? x + C.PLAYER_HITBOX_W : x - 3;
-  r.rect(nx, top + 3, 3, 3, PAPER);
-  // Tank bar above the head.
-  const w = C.PLAYER_HITBOX_W;
-  const fill = Math.round((p.tank / C.TANK_CAPACITY) * w);
-  r.rect(x, top - 4, w, 2, '#2a2f44');
-  r.rect(x, top - 4, fill, 2, p.tank > 0 ? BUBBLE : CORAL);
+  const blink = p.invuln > 0 && Math.floor(p.invuln / 4) % 2 === 0;
+  const top = y + (C.PLAYER_HITBOX_H - (p.crouch ? C.CROUCH_HITBOX_H : C.PLAYER_HITBOX_H));
+  if (!blink) {
+    if (sprite) {
+      // 16×16 sheet centered on the 12×14 hitbox, feet aligned to its base.
+      drawAvatar(r, sprite, frameIndex(sprite, poseFor(p, slot), state.tick, p.vy), x - 2, y - 2, p.facing);
+      lastDrawX.set(slot, px(p.x));
+    } else {
+      const h = p.crouch ? C.CROUCH_HITBOX_H : C.PLAYER_HITBOX_H;
+      r.rect(x, top, C.PLAYER_HITBOX_W, h, tint);
+    }
+    // Aim nub + tank bar over either art — gameplay readability (aim, water left).
+    const nx = p.facing === 1 ? x + C.PLAYER_HITBOX_W : x - 3;
+    r.rect(nx, top + 3, 3, 3, PAPER);
+    const w = C.PLAYER_HITBOX_W;
+    const fill = Math.round((p.tank / C.TANK_CAPACITY) * w);
+    r.rect(x, top - 4, w, 2, '#2a2f44');
+    r.rect(x, top - 4, fill, 2, p.tank > 0 ? BUBBLE : CORAL);
+    if (isLocal) r.rect(x + C.PLAYER_HITBOX_W / 2 - 1, top - 7, 2, 2, tint); // "you" marker
+  }
 }
 
 function drawBoss(r: Canvas2DRenderer, boss: BossState, cx: number): void {
