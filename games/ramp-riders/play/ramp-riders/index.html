@@ -13,25 +13,29 @@
   </head>
   <body>
     <!-- Online play route the rooms server links to (/play/ramp-riders/?room=CODE).
-         Server-authoritative race via @retro-recall/netcode (SPEC §10). -->
-    <main id="stage">
-      <header id="hud">
-        <div class="hud-row">
-          <span id="title">RAMP RIDERS</span>
-          <span class="room-chip">room <span class="room-code" id="room-code">····</span></span>
-          <button id="share" class="chip-btn">invite</button>
-        </div>
-        <div class="hud-row">
-          <div id="riders"></div>
-          <div id="status">connecting…</div>
-        </div>
-      </header>
+         Server-authoritative race via @retro-recall/netcode (SPEC §10).
+         Landscape-only 16:9 with overlaid fading controls (ADR-012). -->
+    <div id="stage">
+      <div id="arena">
+        <header id="hud">
+          <div class="hud-row">
+            <span class="room-chip">room <span class="room-code" id="room-code">····</span></span>
+            <button id="share" class="chip-btn">invite</button>
+          </div>
+          <div class="hud-row">
+            <div id="riders"></div>
+            <div id="status">connecting…</div>
+          </div>
+        </header>
 
-      <canvas id="game"></canvas>
+        <canvas id="game"></canvas>
 
-      <p class="hint keys-only">Z pedal · X pump (boost / pre-jump) · ↑↓ lane · ← → lean in air</p>
-      <div id="controls"></div>
-    </main>
+        <div id="stick" class="ctl-zone" hidden></div>
+        <div id="abzone" class="ctl-zone" hidden></div>
+
+        <p class="hint keys-only">Z pedal · X pump (boost / pre-jump) · ↑↓ lane · ← → lean in air</p>
+      </div>
+    </div>
 
     <div id="name-overlay">
       <div class="overlay-card">

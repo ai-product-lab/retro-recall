@@ -1,7 +1,9 @@
 /*
- * Ramp Riders shell styles (ADR-007 mobile-first). Brand palette
- * (branding/BRAND.md). Canvas is integer-scaled by layout.ts; this file styles
- * the stage and touch controls and reflows them per orientation.
+ * Ramp Riders shell styles (ADR-012 landscape-only 16:9). The canvas fills the
+ * arena (positioned by the shell layout engine); controls are overlaid in the
+ * bottom corners and fade when idle. Control *visuals* come from the shared
+ * @retro-recall/shell/controls.css (imported in JS); this file is page/theme +
+ * HUD + lobby only. Palette: branding/BRAND.md.
  */
 
 :root {
@@ -12,6 +14,12 @@
   --paper: #f2efe9;
   --dim: #8a8fa3;
   --line: #2a3158;
+  /* Map the house palette onto the shared control vars. */
+  --ctl-line: var(--line);
+  --ctl-raised: var(--raised);
+  --ctl-fg: var(--paper);
+  --ctl-accent: var(--phosphor); /* PEDAL (A) */
+  --ctl-accent-2: #ff6b6b; /* PUMP (B) */
 }
 
 * { box-sizing: border-box; }
@@ -33,81 +41,36 @@ body {
 }
 body[data-input='keyboard'] .ctl-zone { display: none; }
 body[data-input='touch'] .keys-only { display: none; }
+/* Respect the layout engine hiding a zone (keyboard) despite controls.css display:flex. */
+.ctl-zone[hidden] { display: none !important; }
 
-#stage {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 10px)
-    calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 10px);
-}
-
-#title { font-size: 14px; letter-spacing: 3px; color: var(--phosphor); margin: 4px 0 0; }
+#stage { position: fixed; inset: 0; }
+#arena { position: relative; width: 100%; height: 100%; overflow: hidden; }
 
 canvas#game {
   image-rendering: pixelated;
   background: #0d0d2b;
-  outline: 2px solid var(--line);
-  outline-offset: 2px;
+  display: block;
 }
 
-.hint { font-size: 11px; color: var(--dim); }
-
-/* --- Touch controls --- */
-
-#controls {
-  width: 100%;
+/* HUD overlays the top; the playfield is offset below it by the layout engine. */
+#hud {
+  position: relative;
+  z-index: 2;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-top: auto;
+  flex-direction: column;
+  gap: 4px;
+  padding: calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 10px) 4px
+    calc(env(safe-area-inset-left) + 10px);
 }
-
-.ctl-zone { display: flex; gap: 12px; align-items: flex-end; }
-.ctl-zone.lanes { flex-direction: column; gap: 10px; }
-.ctl-zone.lean { gap: 8px; }
-
-.ctl {
-  width: 60px;
-  height: 60px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--raised);
-  color: var(--paper);
-  font-size: 18px;
-  font-family: inherit;
-}
-.ctl:active,
-.ctl.held { background: var(--line); transform: scale(0.95); }
-
-/* Throttle: pedal (cyan) + pump (coral, the boost). */
-.ctl.pedal { background: #15324a; border-color: #4cc9f0; color: #cdeefb; font-size: 12px; }
-.ctl.pump  { background: #4a1f22; border-color: #ff6b6b; color: #ffd9d9; font-size: 13px; }
-.ctl.pump.held { background: #ff6b6b; color: #2a0c0c; }
-.ctl.pedal.held { background: #4cc9f0; color: #06222e; }
-
-/* Lane buttons read as the phosphor accent. */
-.ctl.lane-up, .ctl.lane-down { border-color: var(--phosphor); color: var(--phosphor); }
-
-/* Lean is secondary — smaller, lower corners, surfaced mainly in the air. */
-.ctl.lean-back, .ctl.lean-fwd { width: 48px; height: 48px; font-size: 16px; color: var(--dim); }
-
-/* Landscape: keep zones in the bottom corners with breathing room. */
-body[data-orientation='landscape'] #controls { padding: 0 6px; }
-body[data-orientation='portrait'] #controls { padding: 0 4px; }
-
-/* --- Online HUD + join overlay (play route) --- */
-
-#hud { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 4px; }
 .hud-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .room-chip { font-size: 11px; color: var(--dim); }
 .room-code { color: var(--phosphor); letter-spacing: 2px; font-weight: bold; }
 #riders { display: flex; gap: 10px; font-size: 11px; flex-wrap: wrap; }
 #status { font-size: 11px; color: var(--dim); }
 #status.bad { color: #ff6b6b; }
+
+.hint { font-size: 11px; color: var(--dim); position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; }
 
 .chip-btn {
   border: 1px solid var(--line);
@@ -119,15 +82,19 @@ body[data-orientation='portrait'] #controls { padding: 0 4px; }
   font-family: inherit;
   font-size: 12px;
 }
-.chip-btn.primary { background: var(--phosphor); border-color: var(--phosphor); color: #06281a; font-size: 14px; padding: 8px 18px; }
+.chip-btn.primary { background: var(--phosphor); border-color: var(--phosphor); color: #06281a; font-size: 14px; padding: 12px 22px; }
 
+/* --- Join overlay (play route) --- */
 #name-overlay {
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
   background: rgba(10, 12, 24, 0.86);
-  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow-y: auto;
+  touch-action: pan-y;
 }
 #name-overlay.hidden { display: none; }
 .overlay-card {
