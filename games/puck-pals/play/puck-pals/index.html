@@ -12,22 +12,26 @@
   <body>
     <!-- Online versus route (/play/puck-pals?room=CODE), hosted by the rooms
          worker. Server-authoritative netcode per ADR-003 / SPEC.md §11. -->
-    <main id="stage">
-      <header id="hud-bar">
-        <span id="title">PUCK PALS</span>
-        <span class="room-chip">room <span class="room-code" id="room-code">····</span></span>
-        <button id="share" class="chip-btn">invite</button>
-        <div id="players"></div>
-        <div id="status">connecting…</div>
-      </header>
+    <div id="stage">
+      <div id="arena">
+        <header id="hud-bar">
+          <span id="title">PUCK PALS</span>
+          <span class="room-chip">room <span class="room-code" id="room-code">····</span></span>
+          <button id="share" class="chip-btn">invite</button>
+          <div id="players"></div>
+          <div id="status">connecting…</div>
+        </header>
 
-      <canvas id="game"></canvas>
+        <canvas id="game"></canvas>
 
-      <p class="hint keys-only">
-        ↑↓←→ skate · <kbd>Z</kbd> pass · <kbd>X</kbd> shoot / check (hold to wind up) · <kbd>Enter</kbd> restart
-      </p>
-      <div id="controls"></div>
-    </main>
+        <div id="stick" class="ctl-zone" hidden></div>
+        <div id="actions" class="ctl-zone" hidden></div>
+
+        <p class="hint keys-only">
+          ↑↓←→ skate · <kbd>Z</kbd> pass · <kbd>X</kbd> shoot / check (hold to wind up) · <kbd>Enter</kbd> restart
+        </p>
+      </div>
+    </div>
 
     <div id="name-overlay">
       <div class="overlay-card">

@@ -15,3 +15,5 @@ export * from './device';
 export * from './gestures';
 export * from './touch';
 export * from './audio';
+export * from './orientation';
+export * from './fade';

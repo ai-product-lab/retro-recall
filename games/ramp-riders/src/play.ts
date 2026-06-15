@@ -1,11 +1,12 @@
 /**
  * Online play entry (/play/ramp-riders?room=CODE): join the room over
  * WebSocket, run prediction + interpolation via RoomClient/NetView, render the
- * camera-scrolled race, and wire roster / invite / reconnect. `?lag=150` adds
- * the artificial-latency harness for feel-tuning. Server-authoritative
- * (ADR-003); each client predicts its own rider and interpolates rivals.
+ * camera-scrolled race, and wire roster / invite / reconnect. Landscape-only
+ * 16:9 with the analog stick + overlaid fading controls (ADR-012). `?lag=150`
+ * adds the artificial-latency harness. Server-authoritative (ADR-003).
  */
 import './shell/shell.css';
+import '@retro-recall/shell/controls.css';
 import { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import { startLoop } from '@retro-recall/retrokit/loop';
 import { Button } from '@retro-recall/retrokit/sim';
@@ -13,8 +14,16 @@ import { LagTransport, RoomClient, WebSocketTransport, type Transport } from '@r
 import { RampRidersSim } from './sim/sim';
 import { RampRidersView } from './render/index';
 import { NetView } from './net/view';
-import { GAME_W, GAME_H, layoutCanvas, mountControls } from './shell/layout';
-import { installZoomGuard, onViewportChange } from '@retro-recall/shell';
+import { VIEW_W, VIEW_H } from './sim/constants';
+import {
+  applyInputMode,
+  createTouchControls,
+  installZoomGuard,
+  lockLandscapeOnGesture,
+  requireLandscape,
+  startLayout,
+  type TouchControls,
+} from '@retro-recall/shell';
 import { createRoom, fetchRoomInfo, isRoomCodeLike, shareInvite, wsUrl } from './shell/invite';
 
 const SLOT_COLORS = ['#ff6b6b', '#4cc9f0', '#ffd166', '#3df5a6'];
@@ -55,6 +64,8 @@ async function resolveRoomCode(): Promise<string> {
 
 async function main(): Promise<void> {
   installZoomGuard(); // kill double-tap / pinch zoom across the play route
+  requireLandscape(); // portrait → "rotate your phone" gate
+  const inputMode = applyInputMode();
   const code = await resolveRoomCode();
   $('#room-code').textContent = code;
   $('#overlay-code').textContent = code;
@@ -64,7 +75,7 @@ async function main(): Promise<void> {
   const showFatal = (title: string, detail: string): void => {
     const overlay = $('#name-overlay');
     overlay.innerHTML =
-      `<div class="overlay-card"><div class="banner warn"><strong>${title}</strong><br />${detail}</div>` +
+      `<div class="overlay-card"><div class="joining"><strong>${title}</strong><br />${detail}</div>` +
       `<button id="retry-btn" class="chip-btn primary">Try again</button></div>`;
     overlay.classList.remove('hidden');
     $('#retry-btn').addEventListener('click', () => location.reload());
@@ -85,12 +96,13 @@ async function main(): Promise<void> {
     $('#roster-pre').textContent = `already here: ${info.players.map((p) => p.name).join(', ')}`;
   }
 
-  // Name → join (the tap is our user gesture).
+  // Name → join (the tap is our user gesture — also the orientation-lock attempt).
   const nameInput = $<HTMLInputElement>('#name-input');
   nameInput.value = localStorage.getItem('rr-name') ?? '';
   await new Promise<void>((resolve) => {
     const go = (): void => {
       if (nameInput.value.trim().length === 0) nameInput.value = 'Rider';
+      void lockLandscapeOnGesture();
       resolve();
     };
     $('#join-btn').addEventListener('click', go);
@@ -147,15 +159,29 @@ async function main(): Promise<void> {
   });
   client.start();
 
-  // --- Shell ---
+  // --- Shell: full-bleed canvas, analog stick + PEDAL/PUMP, overlaid + fading ---
   const canvas = $<HTMLCanvasElement>('#game');
-  const renderer = new Canvas2DRenderer(canvas, GAME_W, GAME_H, 1);
+  const renderer = new Canvas2DRenderer(canvas, VIEW_W, VIEW_H, 1);
   const view = new RampRidersView();
   const net = new NetView(client);
-  layoutCanvas(canvas);
-  onViewportChange(() => layoutCanvas(canvas)); // rotate/resize/visualViewport + iOS settle
 
-  const touchInput = mountControls($('#controls'));
+  const stick = $<HTMLElement>('#stick');
+  const abzone = $<HTMLElement>('#abzone');
+  let touch: TouchControls | null = null;
+  if (inputMode === 'touch') {
+    touch = createTouchControls(stick, abzone, {
+      buttons: [
+        { label: 'PUMP', bit: Button.B, className: 'b' },
+        { label: 'PEDAL', bit: Button.A, className: 'a' },
+      ],
+      fade: true,
+    });
+  }
+  startLayout(
+    { arena: $('#arena'), playfield: canvas, hud: $('#hud'), dpad: stick, buttons: abzone },
+    { overlay: true, touch: inputMode === 'touch', logicalW: VIEW_W, logicalH: VIEW_H },
+  );
+
   let keyBits = 0;
   window.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLElement && e.target.tagName === 'INPUT') return;
@@ -192,7 +218,7 @@ async function main(): Promise<void> {
 
   startLoop({
     tick: () => {
-      client.localTick(keyBits | touchInput());
+      client.localTick(keyBits | (touch?.sample() ?? 0));
     },
     render: () => {
       const state = net.frame(performance.now());

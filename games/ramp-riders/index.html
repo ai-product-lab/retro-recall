@@ -12,12 +12,14 @@
     <link rel="stylesheet" href="/src/shell/shell.css" />
   </head>
   <body>
-    <main id="stage">
-      <h1 id="title">Ramp Riders</h1>
-      <canvas id="game"></canvas>
-      <p class="hint keys-only">Z pedal · X pump (boost / pre-jump) · ↑↓ lane · ← → lean in air</p>
-      <div id="controls"></div>
-    </main>
+    <div id="stage">
+      <div id="arena">
+        <canvas id="game"></canvas>
+        <div id="stick" class="ctl-zone" hidden></div>
+        <div id="abzone" class="ctl-zone" hidden></div>
+        <p class="hint keys-only">Z pedal · X pump (boost / pre-jump) · ↑↓ lane · ← → lean in air</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

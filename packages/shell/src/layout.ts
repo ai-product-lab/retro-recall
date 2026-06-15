@@ -42,8 +42,17 @@ export interface LayoutOptions {
   logicalH?: number;
   /** Reserve room for touch zones. Default: caller decides via device.ts. */
   touch?: boolean;
+  /** Landscape-only overlay mode (ADR-012): the playfield fills the screen and
+   *  the control zones are *overlays* anchored in the bottom corners that
+   *  reserve no layout space (they sit on top of the game and fade when idle).
+   *  Ignores the portrait branch and the side-bar / control-band reserves. */
+  overlay?: boolean;
   onChange?: (layout: LayoutState) => void;
 }
+
+/** Fraction of the viewport each bottom-corner control overlay spans. */
+const OVERLAY_ZONE_W = 0.42;
+const OVERLAY_ZONE_H = 0.6;
 
 /** Narrowest pillarbox bar (CSS px) we accept before shrinking the scale.
  *  Must clear the widest control art: the A/B cluster (~146px) > d-pad (120px). */
@@ -114,13 +123,59 @@ export function startLayout(refs: LayoutRefs, opts: LayoutOptions = {}): {
   const logicalW = opts.logicalW ?? 256;
   const logicalH = opts.logicalH ?? 192;
   const touch = opts.touch ?? false;
+  const overlay = opts.overlay ?? false;
   let state: LayoutState = {
     orientation: 'landscape',
     scale: 1,
     playfieldCss: { x: 0, y: 0, w: logicalW, h: logicalH },
   };
 
+  const snapDpr = (v: number, dpr: number): number => Math.round(v * dpr) / dpr;
+
+  /** Landscape-only, full-bleed playfield with bottom-corner control overlays. */
+  const relayoutOverlay = (): void => {
+    const dpr = window.devicePixelRatio || 1;
+    const aw = refs.arena.clientWidth;
+    const ah = refs.arena.clientHeight;
+    if (aw === 0 || ah === 0) return;
+
+    refs.arena.dataset['orientation'] = 'landscape';
+    document.body.dataset['orientation'] = 'landscape';
+
+    const hudH = refs.hud ? refs.hud.offsetHeight : 0;
+    const availH = ah - hudH;
+
+    const scale = integerScale(aw * dpr, availH * dpr, logicalW, logicalH);
+    const w = (logicalW * scale) / dpr;
+    const h = (logicalH * scale) / dpr;
+    const x = snapDpr((aw - w) / 2, dpr);
+    const y = snapDpr(hudH + (availH - h) / 2, dpr);
+
+    place(refs.playfield, x, y, w, h);
+    for (const el of refs.playfieldOverlays ?? []) place(el, x, y, w, h);
+
+    if (refs.dpad && refs.buttons) {
+      refs.dpad.hidden = !touch;
+      refs.buttons.hidden = !touch;
+      if (touch) {
+        // Overlays in the bottom corners — they sit *on top* of the playfield
+        // (it fills the screen) and reserve no layout space.
+        const zw = Math.round(aw * OVERLAY_ZONE_W);
+        const zh = Math.round(ah * OVERLAY_ZONE_H);
+        place(refs.dpad, 0, ah - zh, zw, zh);
+        place(refs.buttons, aw - zw, ah - zh, zw, zh);
+      }
+    }
+
+    state = { orientation: 'landscape', scale, playfieldCss: { x, y, w, h } };
+    opts.onChange?.(state);
+  };
+
   const relayout = (): void => {
+    if (overlay) {
+      relayoutOverlay();
+      return;
+    }
     const dpr = window.devicePixelRatio || 1;
     const aw = refs.arena.clientWidth;
     const ah = refs.arena.clientHeight;

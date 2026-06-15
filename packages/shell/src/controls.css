@@ -1,0 +1,81 @@
+/*
+ * Shared control visuals (ADR-012) — the round analog-feel stick, the action
+ * button cluster, and the classic cross d-pad fallback. Structure lives here so
+ * games stop copy-pasting it; colors are themable via CSS vars (each falls back
+ * to the house palette). Import once: `@retro-recall/shell/controls.css`.
+ *
+ * The control VISUALS have pointer-events:none — the touch zone behind them owns
+ * the listeners (createTouchControls), so the whole zone is the hit surface and
+ * a faded control is still fully pressable.
+ */
+
+.ctl-zone {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 max(10px, env(safe-area-inset-bottom));
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* --- Round analog-feel stick --- */
+.stick {
+  position: relative;
+  width: clamp(116px, 42%, 184px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--ctl-line, #2a3158);
+  background: radial-gradient(circle at 50% 42%, var(--ctl-raised, #1a1f38), #11152b);
+  box-shadow: inset 0 0 18px #0006;
+  pointer-events: none;
+}
+.stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40%;
+  aspect-ratio: 1;
+  margin: -20% 0 0 -20%;
+  border-radius: 50%;
+  background: var(--ctl-accent, #3df5a6);
+  opacity: 0.9;
+  /* JS sets transform: translate(x,y) to follow the thumb; spring back is the
+     transition. */
+  transition: transform 70ms ease-out;
+  pointer-events: none;
+}
+
+/* --- Action buttons --- */
+.btn-cluster {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: none;
+}
+.pad-btn {
+  width: clamp(58px, 22vw, 78px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 20px ui-monospace, Menlo, Consolas, monospace;
+  border: 2px solid var(--ctl-line, #2a3158);
+  background: var(--ctl-raised, #1a1f38);
+  color: var(--ctl-fg, #f2efe9);
+}
+.pad-btn.a { border-color: var(--ctl-accent, #3df5a6); color: var(--ctl-accent, #3df5a6); }
+.pad-btn.b { border-color: var(--ctl-accent-2, #ff6b6b); color: var(--ctl-accent-2, #ff6b6b); }
+.pad-btn.held { transform: scale(0.93); filter: brightness(1.5); }
+
+/* --- Classic cross d-pad (style: 'cross' fallback) --- */
+.dpad { position: relative; width: clamp(120px, 78%, 168px); aspect-ratio: 1; pointer-events: none; }
+.dpad-arm,
+.dpad-hub { position: absolute; background: var(--ctl-raised, #1a1f38); border: 2px solid var(--ctl-line, #2a3158); }
+.dpad-arm.up { left: 33.4%; top: 0; width: 33.2%; height: 36%; border-bottom: none; border-radius: 8px 8px 0 0; }
+.dpad-arm.down { left: 33.4%; bottom: 0; width: 33.2%; height: 36%; border-top: none; border-radius: 0 0 8px 8px; }
+.dpad-arm.left { left: 0; top: 33.4%; width: 36%; height: 33.2%; border-right: none; border-radius: 8px 0 0 8px; }
+.dpad-arm.right { right: 0; top: 33.4%; width: 36%; height: 33.2%; border-left: none; border-radius: 0 8px 8px 0; }
+.dpad-hub { left: 33.4%; top: 33.4%; width: 33.2%; height: 33.2%; border: none; }
+.dpad-arm.held { background: var(--ctl-accent, #3df5a6); border-color: var(--ctl-accent, #3df5a6); }

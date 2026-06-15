@@ -9,6 +9,7 @@
  * rather than re-author per game.
  */
 import './shell/shell.css';
+import '@retro-recall/shell/controls.css';
 import { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import { KeyboardInput } from '@retro-recall/retrokit/input';
 import { startLoop } from '@retro-recall/retrokit/loop';
@@ -23,6 +24,8 @@ import {
   applyInputMode,
   createTouchControls,
   installZoomGuard,
+  lockLandscapeOnGesture,
+  requireLandscape,
   resumeAudioOnVisible,
   startLayout,
   type TouchControls,
@@ -59,6 +62,7 @@ async function resolveRoomCode(): Promise<string> {
 async function main(): Promise<void> {
   const inputMode = applyInputMode();
   installZoomGuard(); // kill double-tap / pinch zoom across the whole play route
+  requireLandscape(); // portrait → "rotate your phone" gate (ADR-012)
   resumeAudioOnVisible(audioContext); // sound shouldn't die after backgrounding
   const code = await resolveRoomCode();
   $('#room-code').textContent = code;
@@ -108,6 +112,7 @@ async function main(): Promise<void> {
     const go = (): void => {
       if (nameInput.value.trim().length === 0) nameInput.value = 'Squaddie';
       unlockAudio(); // the join tap doubles as the iOS audio-unlock gesture
+      void lockLandscapeOnGesture(); // …and the orientation-lock attempt
       resolve();
     };
     $('#join-btn').addEventListener('click', go);
@@ -169,7 +174,7 @@ async function main(): Promise<void> {
   const renderer = new Canvas2DRenderer(canvas, SCREEN_W, SCREEN_H, 1);
   const keyboard = new KeyboardInput(window);
   let touch: TouchControls | null = null;
-  if (inputMode === 'touch') touch = createTouchControls($('#dpad'), $('#abzone'));
+  if (inputMode === 'touch') touch = createTouchControls($('#dpad'), $('#abzone'), { fade: true });
 
   startLayout(
     {
@@ -180,7 +185,7 @@ async function main(): Promise<void> {
       buttons: $('#abzone'),
       keysHint: document.querySelector<HTMLElement>('.keys'),
     },
-    { touch: inputMode === 'touch' },
+    { overlay: true, touch: inputMode === 'touch', logicalW: SCREEN_W, logicalH: SCREEN_H },
   );
 
   const view = new NetView(client);
