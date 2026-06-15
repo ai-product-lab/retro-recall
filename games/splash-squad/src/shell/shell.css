@@ -17,6 +17,12 @@
   --paper: #f2efe9;
   --dim: #8a8fa3;
   --line: #2a3158;
+  /* Map the house palette onto the shared control vars (controls.css). */
+  --ctl-line: var(--line);
+  --ctl-raised: var(--midnight-raised);
+  --ctl-fg: var(--paper);
+  --ctl-accent: var(--phosphor); /* A = jump */
+  --ctl-accent-2: var(--cabinet); /* B = soak */
 }
 
 * { box-sizing: border-box; }
@@ -161,56 +167,12 @@ kbd {
   color: var(--paper);
 }
 
-/* --- Touch zones (rects from layout.ts) --- */
-
-.ctl-zone {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  touch-action: none;
-}
-
-/* D-pad: NES cross. The zone is the touch surface; this is the picture. */
-.dpad {
-  position: relative;
-  width: clamp(120px, 78%, 168px);
-  aspect-ratio: 1;
-  pointer-events: none;
-}
-.dpad-arm, .dpad-hub {
-  position: absolute;
-  background: var(--midnight-raised);
-  border: 2px solid var(--line);
-}
-.dpad-arm.up    { left: 33.4%; top: 0;     width: 33.2%; height: 36%; border-bottom: none; border-radius: 8px 8px 0 0; }
-.dpad-arm.down  { left: 33.4%; bottom: 0;  width: 33.2%; height: 36%; border-top: none; border-radius: 0 0 8px 8px; }
-.dpad-arm.left  { left: 0;     top: 33.4%; width: 36%;   height: 33.2%; border-right: none; border-radius: 8px 0 0 8px; }
-.dpad-arm.right { right: 0;    top: 33.4%; width: 36%;   height: 33.2%; border-left: none; border-radius: 0 8px 8px 0; }
-.dpad-hub       { left: 33.4%; top: 33.4%; width: 33.2%; height: 33.2%; border: none; }
-.dpad-arm.held { background: var(--bubble); border-color: var(--bubble); }
-
-/* A/B: Game Boy diagonal — B low-left, A high-right. */
-.btn-cluster {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  pointer-events: none;
-}
-.pad-btn {
-  width: 66px;
-  height: 66px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: bold;
-  background: var(--midnight-raised);
-}
-.pad-btn.a { border: 2px solid var(--phosphor); color: var(--phosphor); transform: translateY(-16px); }
-.pad-btn.b { border: 2px solid var(--cabinet); color: var(--cabinet); transform: translateY(16px); }
-.pad-btn.a.held { background: var(--phosphor); color: #06281a; }
-.pad-btn.b.held { background: var(--cabinet); color: #3d0a0a; }
+/* --- Touch zones --- */
+/* Control VISUALS (stick / knob / buttons) come from
+   @retro-recall/shell/controls.css (ADR-012). The layout engine positions the
+   zones as bottom-corner overlays; this only respects the engine hiding a zone
+   on keyboard devices (controls.css sets .ctl-zone display:flex). */
+.ctl-zone[hidden] { display: none !important; }
 
 /* --- Overlays --- */
 

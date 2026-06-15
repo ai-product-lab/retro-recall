@@ -739,3 +739,40 @@ fixed but the duplication isn't); Ramp's documented lower-corner LEAN reflow
 (only Bubble is a real PWA); per-frame Map/Set churn in the render loops. And the
 whole sweep still wants the two-phone playtest to close — static analysis got it
 to "should be right," not "verified on glass."
+
+## 2026-06-15 — Landscape 16:9 paradigm (ADR-012): shell + Ramp pilot, then beta-wide
+
+New UX paradigm Kevin asked for: hold the phone sideways like a handheld —
+landscape-only, an analog-feel **stick** (knob follows the thumb, like an N64 /
+PS1 stick), **2–3 buttons**, **16:9 full-bleed**, and controls **overlaid** on
+the game that **fade** to ~15% when idle so the whole map shows. This supersedes
+the layout half of ADR-007 (dual-orientation + pillarbox).
+
+Two findings shaped it: the stick can stay **digital** — the octant pad already
+does continuous hold-and-slide and emits the 8-way bitmask, so the stick is
+*visually* analog with zero sim/netcode change (a true analog axis would break
+the integer-input determinism rule); and 16:9 isn't free — scrollers (Splash,
+Ramp) can widen, but the single-screen arenas (Bubble, Puck) have no world beyond
+the 4:3 frame, so true widescreen there means re-authoring levels.
+
+**Phase A** put the paradigm in `@retro-recall/shell`: `orientation.ts`
+(`requireLandscape` rotate gate + `lockLandscapeOnGesture`), an `analogKnob` on
+`createOctantPad`, `style:'stick'|'cross'` + `fade` on `createTouchControls`, an
+`overlay` mode on `startLayout`, `attachIdleFade`, and a shared `controls.css`
+(closing ADR-010's deferred shared-CSS item). **Phase B** piloted it on Ramp
+Riders (already 256×144, camera-only → zero sim risk).
+
+Then Kevin said "get this to production, beta at best." So **all four** convert
+now, **with no sim changes** — the Bubble/Puck arena redesigns + Splash's true
+widen (its `SCREEN_W` is sim-coupled) stay deferred, and for the beta those three
+simply **letterbox** their current play area inside 16:9 with controls overlaid.
+Bubble + Splash flip the shared `createTouchControls`/`startLayout` to overlay +
+stick + fade; Puck keeps its bespoke skate / Pass-Shoot-Check visuals (dynamic
+labels the shared cluster can't do) but gains the knob-follow, fade, and overlay
+layout, dropping its `layoutCanvas`.
+
+202 tests green; all four build; sims + replay fixtures untouched. Shipped beta
+to production via PRs #15 → #16. Honest beta caveats: three of four games are
+letterboxed (not truly 16:9) until the deferred redesigns; the orientation
+"lock" is a gate, not a hard lock, in a Safari tab; stick sensitivity + fade
+timing want real-phone tuning. Plan: `~/.claude/plans/deep-weaving-blanket.md`.

@@ -5,6 +5,7 @@
  * the artificial-latency harness for feel-tuning.
  */
 import './shell/shell.css';
+import '@retro-recall/shell/controls.css';
 import { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import { KeyboardInput } from '@retro-recall/retrokit/input';
 import { startLoop } from '@retro-recall/retrokit/loop';
@@ -25,6 +26,8 @@ import {
   applyInputMode,
   createTouchControls,
   installZoomGuard,
+  lockLandscapeOnGesture,
+  requireLandscape,
   resumeAudioOnVisible,
   startLayout,
   type TouchControls,
@@ -72,6 +75,7 @@ function statusLine(text: string, bad = false): void {
 async function main(): Promise<void> {
   const inputMode = applyInputMode();
   installZoomGuard(); // kill double-tap / pinch zoom across the whole play route
+  requireLandscape(); // portrait → "rotate your phone" gate (ADR-012)
   resumeAudioOnVisible(audioContext); // sound shouldn't die after backgrounding
   registerServiceWorker();
 
@@ -129,8 +133,9 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve) => {
     const go = (): void => {
       if (nameInput.value.trim().length === 0) nameInput.value = 'Buddy';
-      // The join tap is our user gesture — it doubles as the iOS audio unlock.
+      // The join tap is our user gesture — iOS audio unlock + orientation lock.
       unlockAudio();
+      void lockLandscapeOnGesture();
       resolve();
     };
     $('#join-btn').addEventListener('click', go);
@@ -215,6 +220,7 @@ async function main(): Promise<void> {
       // wheel.release() is idempotent so the double call is harmless.
       // holdStart(true): open the wheel at the finger, not screen-center.
       onB: (down) => (down ? wheel.holdStart(true) : wheel.release()),
+      fade: true,
     });
   }
   startLayout(
@@ -226,7 +232,12 @@ async function main(): Promise<void> {
       buttons: $('#abzone'),
       keysHint: document.querySelector<HTMLElement>('.keys'),
     },
-    { touch: inputMode === 'touch' },
+    {
+      overlay: true,
+      touch: inputMode === 'touch',
+      logicalW: LEVEL_WIDTH * TILE_SIZE,
+      logicalH: LEVEL_HEIGHT * TILE_SIZE,
+    },
   );
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyX') wheel.holdStart();

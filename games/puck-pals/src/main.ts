@@ -10,8 +10,14 @@ import { Camera } from '@retro-recall/retrokit/camera';
 import { Button } from '@retro-recall/retrokit/sim';
 import { PuckPalsSim } from './sim/sim';
 import { render, followPuck, VIEW_W, VIEW_H } from './render/index';
-import { GAME_W, GAME_H, layoutCanvas, mountControls } from './shell/layout';
-import { installZoomGuard, onViewportChange } from '@retro-recall/shell';
+import { GAME_W, GAME_H, mountControls } from './shell/layout';
+import {
+  applyInputMode,
+  installZoomGuard,
+  lockLandscapeOnGesture,
+  requireLandscape,
+  startLayout,
+} from '@retro-recall/shell';
 import { HeadStore, headResolver } from './avatar/heads';
 import { galleryId } from '@retro-recall/avatar';
 
@@ -39,15 +45,24 @@ const P2: Record<string, number> = {
 
 const hotseat = new URLSearchParams(location.search).get('hotseat') === '1';
 const canvas = document.querySelector<HTMLCanvasElement>('#game');
-const controls = document.querySelector<HTMLElement>('#controls');
+const arena = document.querySelector<HTMLElement>('#arena');
+const stick = document.querySelector<HTMLElement>('#stick');
+const actionZone = document.querySelector<HTMLElement>('#actions');
 
-if (canvas) {
+if (canvas && arena) {
   installZoomGuard();
-  const r = new Canvas2DRenderer(canvas, GAME_W, GAME_H, 1);
-  layoutCanvas(canvas);
-  onViewportChange(() => layoutCanvas(canvas)); // rotate/resize/visualViewport + iOS settle
+  requireLandscape();
+  const lockOnce = (): void => void lockLandscapeOnGesture();
+  window.addEventListener('pointerdown', lockOnce, { once: true });
 
-  const pad = controls ? mountControls(controls) : null;
+  const inputMode = applyInputMode();
+  const r = new Canvas2DRenderer(canvas, GAME_W, GAME_H, 1);
+
+  const pad = inputMode === 'touch' && stick && actionZone ? mountControls(stick, actionZone) : null;
+  startLayout(
+    { arena, playfield: canvas, hud: document.querySelector<HTMLElement>('#hud-bar'), dpad: stick, buttons: actionZone },
+    { overlay: true, touch: inputMode === 'touch', logicalW: GAME_W, logicalH: GAME_H },
+  );
   const localIds = hotseat ? [0, 10] : [0];
 
   const keys = new Set<string>();

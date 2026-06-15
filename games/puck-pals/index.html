@@ -8,26 +8,32 @@
     <link rel="stylesheet" href="/src/shell/shell.css" />
   </head>
   <body>
-    <main id="stage">
-      <h1 id="title">Puck Pals</h1>
+    <div id="stage">
+      <div id="arena">
+        <!-- Online versus: start a rink or join by code. Solo-vs-CPU plays
+             behind without a server; these route to /play/puck-pals. -->
+        <header id="hud-bar">
+          <span id="title">Puck Pals</span>
+          <div id="online-bar">
+            <button id="create-room" class="chip-btn primary">PLAY ONLINE</button>
+            <form id="join-form">
+              <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off"
+                     inputmode="text" autocapitalize="characters" spellcheck="false" />
+              <button type="submit" class="chip-btn">JOIN</button>
+            </form>
+          </div>
+          <p id="online-status" class="hint"></p>
+        </header>
 
-      <!-- Online versus: start a rink or join by code. Solo-vs-CPU plays below
-           without a server; these route to /play/puck-pals (rooms worker). -->
-      <div id="online-bar">
-        <button id="create-room" class="chip-btn primary">PLAY ONLINE</button>
-        <form id="join-form">
-          <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off"
-                 inputmode="text" autocapitalize="characters" spellcheck="false" />
-          <button type="submit" class="chip-btn">JOIN</button>
-        </form>
+        <canvas id="game"></canvas>
+
+        <div id="stick" class="ctl-zone" hidden></div>
+        <div id="actions" class="ctl-zone" hidden></div>
+
+        <p class="hint keys-only">solo vs CPU — ↑↓←→ skate · Z pass · X shoot / check (hold X to wind up) · Enter restart</p>
+        <p class="hint touch-only">solo vs CPU — empty seats play as CPU</p>
       </div>
-      <p id="online-status" class="hint"></p>
-
-      <canvas id="game"></canvas>
-      <p class="hint keys-only">solo vs CPU — ↑↓←→ skate · Z pass · X shoot / check (hold X to wind up) · Enter restart</p>
-      <p class="hint touch-only">solo vs CPU — empty seats play as CPU</p>
-      <div id="controls"></div>
-    </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
     <script type="module" src="/src/home.ts"></script>
   </body>

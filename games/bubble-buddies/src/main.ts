@@ -4,6 +4,7 @@
  * same input bitmask.
  */
 import './shell/shell.css';
+import '@retro-recall/shell/controls.css';
 import { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import { KeyboardInput } from '@retro-recall/retrokit/input';
 import { startLoop } from '@retro-recall/retrokit/loop';
@@ -14,6 +15,8 @@ import {
   applyInputMode,
   createTouchControls,
   installZoomGuard,
+  lockLandscapeOnGesture,
+  requireLandscape,
   resumeAudioOnVisible,
   startLayout,
   type TouchControls,
@@ -29,6 +32,7 @@ const $ = <T extends HTMLElement>(sel: string): T => {
 
 const inputMode = applyInputMode();
 installZoomGuard();
+requireLandscape();
 resumeAudioOnVisible(audioContext);
 registerServiceWorker();
 offerInstall($('#install-slot'), true);
@@ -41,7 +45,7 @@ const renderer = new Canvas2DRenderer(canvas, LEVEL_WIDTH * TILE_SIZE, LEVEL_HEI
 const keyboard = new KeyboardInput(window);
 let touch: TouchControls | null = null;
 if (inputMode === 'touch') {
-  touch = createTouchControls($('#dpad'), $('#abzone'));
+  touch = createTouchControls($('#dpad'), $('#abzone'), { fade: true });
 }
 
 startLayout(
@@ -54,7 +58,12 @@ startLayout(
     keysHint: document.querySelector<HTMLElement>('.keys'),
     playfieldOverlays: [gate],
   },
-  { touch: inputMode === 'touch' },
+  {
+    overlay: true,
+    touch: inputMode === 'touch',
+    logicalW: LEVEL_WIDTH * TILE_SIZE,
+    logicalH: LEVEL_HEIGHT * TILE_SIZE,
+  },
 );
 
 // Seeding from the clock is fine out here in the shell — the seed is the
@@ -66,6 +75,7 @@ const start = (): void => {
   if (started) return;
   started = true;
   unlockAudio();
+  void lockLandscapeOnGesture();
   gate.remove();
   startLoop({
     tick: () => sim.tick([keyboard.sample() | (touch?.sample() ?? 0)]),

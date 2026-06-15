@@ -13,8 +13,14 @@ import { LagTransport, RoomClient, WebSocketTransport, type Transport } from '@r
 import { PuckPalsSim } from './sim/sim';
 import { render, followPuck, VIEW_W, VIEW_H } from './render/index';
 import { NetView } from './net/view';
-import { GAME_W, GAME_H, layoutCanvas, mountControls, type TouchPad } from './shell/layout';
-import { applyInputMode, installZoomGuard, onViewportChange } from '@retro-recall/shell';
+import { GAME_W, GAME_H, mountControls, type TouchPad } from './shell/layout';
+import {
+  applyInputMode,
+  installZoomGuard,
+  lockLandscapeOnGesture,
+  requireLandscape,
+  startLayout,
+} from '@retro-recall/shell';
 import { HeadStore, headResolver } from './avatar/heads';
 import { setupAvatarPicker } from './avatar/picker';
 import {
@@ -66,6 +72,7 @@ function statusLine(text: string, bad = false): void {
 async function main(): Promise<void> {
   const inputMode = applyInputMode();
   installZoomGuard(); // kill double-tap / pinch zoom across the play route
+  requireLandscape(); // portrait → "rotate your phone" gate (ADR-012)
 
   // Re-surface the lobby overlay with a retry on a dead-end (full / gave up).
   const showFatal = (title: string, detail: string): void => {
@@ -128,6 +135,7 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve) => {
     const go = (): void => {
       if (nameInput.value.trim().length === 0) nameInput.value = 'Skater';
+      void lockLandscapeOnGesture(); // the join tap is our orientation-lock gesture
       resolve();
     };
     $('#join-btn').addEventListener('click', go);
@@ -190,11 +198,15 @@ async function main(): Promise<void> {
   // --- Shell: canvas, layout, input ---
   const canvas = $<HTMLCanvasElement>('#game');
   const renderer = new Canvas2DRenderer(canvas, GAME_W, GAME_H, 1);
-  layoutCanvas(canvas);
-  onViewportChange(() => layoutCanvas(canvas)); // rotate/resize/visualViewport + iOS settle
+  const stick = $<HTMLElement>('#stick');
+  const actionZone = $<HTMLElement>('#actions');
 
   let pad: TouchPad | null = null;
-  if (inputMode === 'touch') pad = mountControls($('#controls'));
+  if (inputMode === 'touch') pad = mountControls(stick, actionZone);
+  startLayout(
+    { arena: $('#arena'), playfield: canvas, hud: $('#hud-bar'), dpad: stick, buttons: actionZone },
+    { overlay: true, touch: inputMode === 'touch', logicalW: GAME_W, logicalH: GAME_H },
+  );
 
   const keys = new Set<string>();
   window.addEventListener('keydown', (e) => {

@@ -5,6 +5,7 @@
  * through @retro-recall/netcode in src/play.ts (the /play route).
  */
 import './shell/shell.css';
+import '@retro-recall/shell/controls.css';
 import { Canvas2DRenderer } from '@retro-recall/retrokit/render';
 import { KeyboardInput } from '@retro-recall/retrokit/input';
 import { startLoop } from '@retro-recall/retrokit/loop';
@@ -15,6 +16,8 @@ import {
   applyInputMode,
   createTouchControls,
   installZoomGuard,
+  lockLandscapeOnGesture,
+  requireLandscape,
   resumeAudioOnVisible,
   startLayout,
   type TouchControls,
@@ -30,6 +33,7 @@ const $ = <T extends HTMLElement>(sel: string): T => {
 
 const inputMode = applyInputMode();
 installZoomGuard();
+requireLandscape();
 resumeAudioOnVisible(audioContext);
 const canvas = $<HTMLCanvasElement>('#game');
 const gate = $<HTMLButtonElement>('#start-gate');
@@ -38,7 +42,7 @@ const gate = $<HTMLButtonElement>('#start-gate');
 const renderer = new Canvas2DRenderer(canvas, SCREEN_W, SCREEN_H, 1);
 const keyboard = new KeyboardInput(window);
 let touch: TouchControls | null = null;
-if (inputMode === 'touch') touch = createTouchControls($('#dpad'), $('#abzone'));
+if (inputMode === 'touch') touch = createTouchControls($('#dpad'), $('#abzone'), { fade: true });
 
 startLayout(
   {
@@ -50,7 +54,7 @@ startLayout(
     keysHint: document.querySelector<HTMLElement>('.keys'),
     playfieldOverlays: [gate],
   },
-  { touch: inputMode === 'touch' },
+  { overlay: true, touch: inputMode === 'touch', logicalW: SCREEN_W, logicalH: SCREEN_H },
 );
 
 // Seeding from the clock is fine in the shell — the seed is the recorded
@@ -63,6 +67,7 @@ const start = (): void => {
   if (started) return;
   started = true;
   unlockAudio(); // this tap is the iOS audio-unlock gesture (ADR-007)
+  void lockLandscapeOnGesture(); // …and the orientation-lock attempt
   gate.remove();
   startLoop({
     tick: () => sim.tick([keyboard.sample() | (touch?.sample() ?? 0)]),
