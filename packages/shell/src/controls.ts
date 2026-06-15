@@ -1,17 +1,22 @@
 /**
  * Touch controls (ADR-007, replaces the Phase 2 stopgap pad). Two zones the
  * layout engine positions — d-pad and A/B — feed the same NES-style input
- * bitmask the keyboard does; the sim never knows fingers exist.
+ * bitmask the keyboard does; the sim never knows fingers exist. Built on the
+ * shared touch primitives (touch.ts) so the plumbing is authored once.
  *
  * - The *whole zone* is the touch surface; the drawn pad is just the visual.
  * - D-pad: 8-way from the vector to the cross center, recomputed every
  *   pointermove — slide between directions without lifting.
- * - A/B: each pointer locks to the button it pressed (≥48px visuals plus hit
- *   slop via nearest-center matching), so a B-hold can't wander onto A while
- *   the emote wheel is open.
+ * - A/B: each pointer locks to the nearest button (≥48px visuals plus hit slop),
+ *   and re-evaluates on move, so sliding from B onto A hands the hold over
+ *   instead of leaving B stuck (and the emote wheel jammed open).
  * - Every pointer is tracked by pointerId: move + jump + blow simultaneously.
+ * - Held state is dropped on blur, pagehide, and visibilitychange — iOS does not
+ *   reliably fire blur on App Switcher / notification shade.
  */
 import { Button } from '@retro-recall/retrokit/sim';
+import { suppressGestures } from './gestures';
+import { createOctantPad, onRelease, type OctantBitset } from './touch';
 
 export interface TouchControls {
   /** Combined bitmask of everything currently held. */
@@ -19,40 +24,46 @@ export interface TouchControls {
   destroy(): void;
 }
 
-export interface TouchControlHooks {
-  /** B pressed/released — the emote wheel hangs its hold gesture here. */
-  onB?: (down: boolean) => void;
+export interface ButtonSpec {
+  label: string;
+  bit: number;
+  /** Extra class on the button element (styling hook). */
+  className: string;
+  /** Fire a hook on this button's press/release transitions. */
+  onChange?: (down: boolean) => void;
 }
 
-/** Octant → bits, starting at East, clockwise (screen y grows downward). */
-const OCTANT_BITS: readonly number[] = [
-  Button.Right,
-  Button.Right | Button.Down,
-  Button.Down,
-  Button.Down | Button.Left,
-  Button.Left,
-  Button.Left | Button.Up,
-  Button.Up,
-  Button.Up | Button.Right,
-];
+export interface TouchControlOptions {
+  /** B pressed/released — the emote wheel hangs its hold gesture here.
+   *  Shorthand for a `{ bit: Button.B, onChange }` spec. */
+  onB?: (down: boolean) => void;
+  /** Override the action buttons (DOM order). Defaults to B then A. */
+  buttons?: ButtonSpec[];
+  /** Override the d-pad direction mapping. Defaults to the four cardinals. */
+  dpadBits?: OctantBitset;
+}
+
+/** Backwards-compatible alias — callers used to pass `{ onB }`. */
+export type TouchControlHooks = TouchControlOptions;
 
 const ARM_NAMES = ['up', 'right', 'down', 'left'] as const;
 const ARM_BITS = [Button.Up, Button.Right, Button.Down, Button.Left] as const;
+const CARDINALS: OctantBitset = {
+  up: Button.Up,
+  down: Button.Down,
+  left: Button.Left,
+  right: Button.Right,
+};
 
 /** Extra touchable radius beyond a button's drawn edge. */
 const HIT_SLOP = 18;
 
-const suppressGestures = (el: HTMLElement): void => {
-  el.style.touchAction = 'none';
-  el.addEventListener('contextmenu', (e) => e.preventDefault());
-};
-
 export function createTouchControls(
   dpadZone: HTMLElement,
   buttonZone: HTMLElement,
-  hooks: TouchControlHooks = {},
+  opts: TouchControlOptions = {},
 ): TouchControls {
-  // --- D-pad ---
+  // --- D-pad (shared octant pad primitive) ---
   const dpad = document.createElement('div');
   dpad.className = 'dpad';
   const arms = ARM_NAMES.map((name) => {
@@ -64,71 +75,38 @@ export function createTouchControls(
   hub.className = 'dpad-hub';
   dpad.append(...arms, hub);
   dpadZone.append(dpad);
-  suppressGestures(dpadZone);
 
-  const dpadPointers = new Map<number, number>();
-  let dpadBits = 0;
-
-  const refreshDpad = (): void => {
-    dpadBits = 0;
-    for (const bits of dpadPointers.values()) dpadBits |= bits;
-    arms.forEach((arm, i) => arm.classList.toggle('held', (dpadBits & ARM_BITS[i]!) !== 0));
-  };
-
-  const dpadVector = (e: PointerEvent): number => {
-    const r = dpad.getBoundingClientRect();
-    const dx = e.clientX - (r.left + r.width / 2);
-    const dy = e.clientY - (r.top + r.height / 2);
-    const dead = Math.max(10, r.width * 0.12);
-    if (Math.hypot(dx, dy) < dead) return 0;
-    const octant = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-    return OCTANT_BITS[octant]!;
-  };
-
-  const onDpadDown = (e: PointerEvent): void => {
-    e.preventDefault();
-    dpadZone.setPointerCapture(e.pointerId);
-    dpadPointers.set(e.pointerId, dpadVector(e));
-    refreshDpad();
-  };
-  const onDpadMove = (e: PointerEvent): void => {
-    if (!dpadPointers.has(e.pointerId)) return;
-    dpadPointers.set(e.pointerId, dpadVector(e));
-    refreshDpad();
-  };
-  const onDpadUp = (e: PointerEvent): void => {
-    if (!dpadPointers.delete(e.pointerId)) return;
-    refreshDpad();
-  };
-  dpadZone.addEventListener('pointerdown', onDpadDown);
-  dpadZone.addEventListener('pointermove', onDpadMove);
-  dpadZone.addEventListener('pointerup', onDpadUp);
-  dpadZone.addEventListener('pointercancel', onDpadUp);
+  const pad = createOctantPad(dpadZone, dpad, {
+    bits: opts.dpadBits ?? CARDINALS,
+    onChange: (bits) =>
+      arms.forEach((arm, i) => arm.classList.toggle('held', (bits & ARM_BITS[i]!) !== 0)),
+  });
 
   // --- A / B buttons ---
-  const makeButton = (label: string, cls: string): HTMLDivElement => {
-    const el = document.createElement('div');
-    el.className = `pad-btn ${cls}`;
-    el.textContent = label;
-    return el;
-  };
+  const specs: ButtonSpec[] = opts.buttons ?? [
+    { label: 'B', bit: Button.B, className: 'b', onChange: opts.onB },
+    { label: 'A', bit: Button.A, className: 'a' },
+  ];
   const cluster = document.createElement('div');
   cluster.className = 'btn-cluster';
-  const bEl = makeButton('B', 'b');
-  const aEl = makeButton('A', 'a');
-  cluster.append(bEl, aEl);
+  const buttons = specs.map((spec) => {
+    const el = document.createElement('div');
+    el.className = `pad-btn ${spec.className}`;
+    el.textContent = spec.label;
+    cluster.append(el);
+    return { ...spec, el };
+  });
   buttonZone.append(cluster);
   suppressGestures(buttonZone);
 
-  const buttons = [
-    { el: aEl, bit: Button.A as number },
-    { el: bEl, bit: Button.B as number },
-  ];
-  const btnPointers = new Map<number, { el: HTMLDivElement; bit: number }>();
+  type Held = (typeof buttons)[number];
+  // pointerId → the button it currently rests on, or null when slid off all.
+  const btnPointers = new Map<number, Held | null>();
   let buttonBits = 0;
+  const fired = new Map<number, boolean>(); // bit → last reported onChange state
 
-  const hitTest = (e: PointerEvent): (typeof buttons)[number] | null => {
-    let best: (typeof buttons)[number] | null = null;
+  const hitTest = (e: PointerEvent): Held | null => {
+    let best: Held | null = null;
     let bestDist = Infinity;
     for (const b of buttons) {
       const r = b.el.getBoundingClientRect();
@@ -141,50 +119,67 @@ export function createTouchControls(
     return best;
   };
 
-  const refreshButtons = (): void => {
+  const refresh = (): void => {
     buttonBits = 0;
-    for (const held of btnPointers.values()) buttonBits |= held.bit;
+    for (const held of btnPointers.values()) if (held) buttonBits |= held.bit;
     for (const b of buttons) {
-      const held = [...btnPointers.values()].some((h) => h.el === b.el);
-      b.el.classList.toggle('held', held);
+      const isHeld = [...btnPointers.values()].some((h) => h?.el === b.el);
+      b.el.classList.toggle('held', isHeld);
+      // Edge-trigger each button's onChange (covers down/up/slide/release).
+      if (b.onChange) {
+        const was = fired.get(b.bit) ?? false;
+        if (was !== isHeld) {
+          fired.set(b.bit, isHeld);
+          b.onChange(isHeld);
+        }
+      }
     }
   };
 
-  const onBtnDown = (e: PointerEvent): void => {
+  const onDown = (e: PointerEvent): void => {
     e.preventDefault();
     const hit = hitTest(e);
     if (!hit) return;
-    buttonZone.setPointerCapture(e.pointerId);
     btnPointers.set(e.pointerId, hit);
-    refreshButtons();
-    if (hit.bit === Button.B) hooks.onB?.(true);
+    try {
+      buttonZone.setPointerCapture(e.pointerId);
+    } catch {
+      /* best-effort */
+    }
+    refresh();
   };
-  const onBtnUp = (e: PointerEvent): void => {
-    const held = btnPointers.get(e.pointerId);
-    if (!held) return;
-    btnPointers.delete(e.pointerId);
-    refreshButtons();
-    if (held.bit === Button.B) hooks.onB?.(false);
+  const onMove = (e: PointerEvent): void => {
+    if (!btnPointers.has(e.pointerId)) return;
+    const next = hitTest(e); // may be null when slid into the gap
+    if (next !== (btnPointers.get(e.pointerId) ?? null)) {
+      btnPointers.set(e.pointerId, next);
+      refresh();
+    }
   };
-  buttonZone.addEventListener('pointerdown', onBtnDown);
-  buttonZone.addEventListener('pointerup', onBtnUp);
-  buttonZone.addEventListener('pointercancel', onBtnUp);
+  const onUp = (e: PointerEvent): void => {
+    if (btnPointers.delete(e.pointerId)) refresh();
+  };
+  buttonZone.addEventListener('pointerdown', onDown);
+  buttonZone.addEventListener('pointermove', onMove);
+  buttonZone.addEventListener('pointerup', onUp);
+  buttonZone.addEventListener('pointercancel', onUp);
 
-  // App switch / notification shade mid-press: drop everything held.
-  const onBlur = (): void => {
-    const bWasHeld = (buttonBits & Button.B) !== 0;
-    dpadPointers.clear();
+  const releaseAll = (): void => {
+    if (btnPointers.size === 0) return;
     btnPointers.clear();
-    refreshDpad();
-    refreshButtons();
-    if (bWasHeld) hooks.onB?.(false);
+    refresh();
   };
-  window.addEventListener('blur', onBlur);
+  const stopRelease = onRelease(releaseAll);
 
   return {
-    sample: () => dpadBits | buttonBits,
+    sample: () => pad.sample() | buttonBits,
     destroy: () => {
-      window.removeEventListener('blur', onBlur);
+      stopRelease();
+      pad.destroy();
+      buttonZone.removeEventListener('pointerdown', onDown);
+      buttonZone.removeEventListener('pointermove', onMove);
+      buttonZone.removeEventListener('pointerup', onUp);
+      buttonZone.removeEventListener('pointercancel', onUp);
       dpad.remove();
       cluster.remove();
     },

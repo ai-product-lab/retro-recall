@@ -41,7 +41,8 @@ body[data-input='touch'] .keys-only { display: none; }
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: calc(env(safe-area-inset-top) + 10px) 10px calc(env(safe-area-inset-bottom) + 10px);
+  padding: calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 10px)
+    calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 10px);
 }
 
 #title { font-size: 14px; letter-spacing: 3px; color: var(--phosphor); margin: 4px 0 0; }
@@ -92,7 +93,7 @@ canvas#game {
 .ctl.lane-up, .ctl.lane-down { border-color: var(--phosphor); color: var(--phosphor); }
 
 /* Lean is secondary — smaller, lower corners, surfaced mainly in the air. */
-.ctl.lean-back, .ctl.lean-fwd { width: 46px; height: 46px; font-size: 16px; color: var(--dim); }
+.ctl.lean-back, .ctl.lean-fwd { width: 48px; height: 48px; font-size: 16px; color: var(--dim); }
 
 /* Landscape: keep zones in the bottom corners with breathing room. */
 body[data-orientation='landscape'] #controls { padding: 0 6px; }
@@ -113,9 +114,10 @@ body[data-orientation='portrait'] #controls { padding: 0 4px; }
   background: var(--raised);
   color: var(--paper);
   border-radius: 8px;
-  padding: 3px 10px;
+  padding: 10px 14px;
+  min-height: 44px;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;
 }
 .chip-btn.primary { background: var(--phosphor); border-color: var(--phosphor); color: #06281a; font-size: 14px; padding: 8px 18px; }
 

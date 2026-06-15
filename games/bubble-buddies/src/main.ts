@@ -13,10 +13,12 @@ import { render } from './render/index';
 import {
   applyInputMode,
   createTouchControls,
+  installZoomGuard,
+  resumeAudioOnVisible,
   startLayout,
   type TouchControls,
 } from '@retro-recall/shell';
-import { unlockAudio } from './shell/audio';
+import { audioContext, unlockAudio } from './shell/audio';
 import { offerInstall, registerServiceWorker } from './shell/pwa';
 
 const $ = <T extends HTMLElement>(sel: string): T => {
@@ -26,6 +28,8 @@ const $ = <T extends HTMLElement>(sel: string): T => {
 };
 
 const inputMode = applyInputMode();
+installZoomGuard();
+resumeAudioOnVisible(audioContext);
 registerServiceWorker();
 offerInstall($('#install-slot'), true);
 

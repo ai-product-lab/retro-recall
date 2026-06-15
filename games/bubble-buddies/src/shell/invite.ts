@@ -72,7 +72,7 @@ export function escapeToBrowser(): void {
   }
 }
 
-export async function shareInvite(url: string): Promise<'shared' | 'copied'> {
+export async function shareInvite(url: string): Promise<'shared' | 'copied' | 'failed'> {
   if (navigator.share) {
     try {
       await navigator.share({
@@ -85,6 +85,12 @@ export async function shareInvite(url: string): Promise<'shared' | 'copied'> {
       // fall through to clipboard (user cancelled or share unsupported)
     }
   }
-  await navigator.clipboard.writeText(url);
-  return 'copied';
+  // clipboard is undefined on insecure origins and rejects when the doc isn't
+  // focused (common right after a dismissed share sheet) — never let it throw.
+  try {
+    await navigator.clipboard.writeText(url);
+    return 'copied';
+  } catch {
+    return 'failed';
+  }
 }

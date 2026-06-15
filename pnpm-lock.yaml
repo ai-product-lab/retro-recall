@@ -63,6 +63,9 @@ importers:
       '@retro-recall/retrokit':
         specifier: workspace:*
         version: link:../../packages/retrokit
+      '@retro-recall/shell':
+        specifier: workspace:*
+        version: link:../../packages/shell
     devDependencies:
       vite:
         specifier: ^7.1.0
@@ -76,6 +79,9 @@ importers:
       '@retro-recall/retrokit':
         specifier: workspace:*
         version: link:../../packages/retrokit
+      '@retro-recall/shell':
+        specifier: workspace:*
+        version: link:../../packages/shell
     devDependencies:
       vite:
         specifier: ^7.1.0

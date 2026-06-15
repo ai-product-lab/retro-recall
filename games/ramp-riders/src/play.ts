@@ -14,6 +14,7 @@ import { RampRidersSim } from './sim/sim';
 import { RampRidersView } from './render/index';
 import { NetView } from './net/view';
 import { GAME_W, GAME_H, layoutCanvas, mountControls } from './shell/layout';
+import { installZoomGuard, onViewportChange } from '@retro-recall/shell';
 import { createRoom, fetchRoomInfo, isRoomCodeLike, shareInvite, wsUrl } from './shell/invite';
 
 const SLOT_COLORS = ['#ff6b6b', '#4cc9f0', '#ffd166', '#3df5a6'];
@@ -53,17 +54,30 @@ async function resolveRoomCode(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  installZoomGuard(); // kill double-tap / pinch zoom across the play route
   const code = await resolveRoomCode();
   $('#room-code').textContent = code;
   $('#overlay-code').textContent = code;
   statusLine('');
 
+  // Re-surface the lobby overlay with a retry on a dead-end (full / gave up).
+  const showFatal = (title: string, detail: string): void => {
+    const overlay = $('#name-overlay');
+    overlay.innerHTML =
+      `<div class="overlay-card"><div class="banner warn"><strong>${title}</strong><br />${detail}</div>` +
+      `<button id="retry-btn" class="chip-btn primary">Try again</button></div>`;
+    overlay.classList.remove('hidden');
+    $('#retry-btn').addEventListener('click', () => location.reload());
+  };
+
   $('#share').addEventListener('click', () => {
     const url = new URL(location.href);
     url.search = `?room=${code}`;
-    void shareInvite(url.toString()).then((how) =>
-      statusLine(how === 'copied' ? 'link copied — paste it in the call chat' : ''),
-    );
+    void shareInvite(url.toString()).then((how) => {
+      if (how === 'copied') statusLine('link copied — paste it in the call chat');
+      else if (how === 'failed') statusLine('couldn’t copy — long-press the address bar to share', true);
+      else statusLine('');
+    });
   });
 
   const info = await fetchRoomInfo(code);
@@ -96,6 +110,7 @@ async function main(): Promise<void> {
   };
 
   let reconnectTries = 0;
+  let reconnectTimer = 0;
   const client = new RoomClient<RampRidersSim>({
     connect: makeTransport,
     createSim: () => new RampRidersSim(0),
@@ -111,13 +126,16 @@ async function main(): Promise<void> {
           statusLine('connecting…');
         } else if (ev.status === 'full') {
           statusLine('room is full (4 riders + 4 watchers)', true);
+          showFatal('This room is full', 'It already has 4 riders and 4 watchers.');
         } else if (ev.status === 'disconnected') {
           if (reconnectTries < 8) {
             reconnectTries++;
             statusLine(`connection lost — reconnecting (try ${reconnectTries})…`, true);
-            setTimeout(() => client.reconnect(), 1200 * reconnectTries);
+            clearTimeout(reconnectTimer);
+            reconnectTimer = window.setTimeout(() => client.reconnect(), 1200 * reconnectTries);
           } else {
             statusLine('disconnected — reload to rejoin', true);
+            showFatal('Disconnected', 'We couldn’t reach the room after several tries.');
           }
         }
       } else if (ev.kind === 'peers') {
@@ -135,11 +153,12 @@ async function main(): Promise<void> {
   const view = new RampRidersView();
   const net = new NetView(client);
   layoutCanvas(canvas);
-  window.addEventListener('resize', () => layoutCanvas(canvas));
+  onViewportChange(() => layoutCanvas(canvas)); // rotate/resize/visualViewport + iOS settle
 
   const touchInput = mountControls($('#controls'));
   let keyBits = 0;
   window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLElement && e.target.tagName === 'INPUT') return;
     const bit = KEYMAP[e.code];
     if (bit) {
       keyBits |= bit;

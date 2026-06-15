@@ -14,10 +14,12 @@ import { render } from './render/index';
 import {
   applyInputMode,
   createTouchControls,
+  installZoomGuard,
+  resumeAudioOnVisible,
   startLayout,
   type TouchControls,
 } from '@retro-recall/shell';
-import { unlockAudio } from './shell/audio';
+import { audioContext, unlockAudio } from './shell/audio';
 import { SfxObserver } from './shell/sfx';
 
 const $ = <T extends HTMLElement>(sel: string): T => {
@@ -27,6 +29,8 @@ const $ = <T extends HTMLElement>(sel: string): T => {
 };
 
 const inputMode = applyInputMode();
+installZoomGuard();
+resumeAudioOnVisible(audioContext);
 const canvas = $<HTMLCanvasElement>('#game');
 const gate = $<HTMLButtonElement>('#start-gate');
 

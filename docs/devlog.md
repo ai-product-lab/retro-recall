@@ -675,3 +675,67 @@ filenames, so the deployed hash matching the env-built hash is itself the proof)
 Both hostnames now play. Lesson logged for the Field Guide: when a split
 Pages+Worker deploy throws 405 on a POST, suspect the hostname/route binding,
 not the handler.
+
+## 2026-06-14 — Mobile controls sweep: harden the shell, converge all four games
+
+Kevin reported a cluster of phone-only bugs — double-tap a button and the screen
+zooms, rotation doesn't flow, controls feeling off. A static-analysis sweep (one
+auditor per game + the shared packages + cross-cutting HTML/CSS, then a synthesis
+pass) confirmed the root cause: **control/layout code was half-shared, half
+re-invented.** Bubble Buddies and Splash Squad used `@retro-recall/shell`;
+Puck Pals and Ramp Riders had each re-implemented the pointer plumbing and
+viewport handling — worse, and with their own bugs. The shared shell itself had
+two more. So the symptoms lived in the *divergence*, not in any one game.
+
+Fixed in three waves, shell-first per ADR-009/010, sim + replay fixtures
+untouched throughout (199 tests green; all four games build).
+
+**Wave 0 — harden + extend the shell.** The shared A/B buttons gained a
+`pointermove` re-bind (sliding B→A now hands over the hold instead of leaving B
+stuck — which also un-jams the emote wheel); pointer capture is recorded before
+the (now guarded) `setPointerCapture` so a throw on fast Android multi-touch
+can't drop the press; held state releases on `visibilitychange`/`pagehide`, not
+just `blur` (iOS doesn't fire `blur` on the App Switcher). The layout band can no
+longer collapse to zero on short screens (`controlBand()`), and `MIN_SIDE_BAR`
+now clears the widest control art. New shared modules: `gestures.ts`
+(`installZoomGuard` — the global `gesturestart`/`dblclick` kill that
+`user-scalable=no` can't do on iOS), `touch.ts` (octant math + `createOctantPad`
++ `bindMomentaryButton` — the reusable surface primitives), `audio.ts`
+(`resumeAudioOnVisible`). retrokit: keyboard ignores editable targets and
+releases on visibility; camera floors its view dims; the loop exposes an
+`onResume` hook. Pure logic is now unit-tested (octant, integer-scale, band).
+
+**Wave 1 — the shared-shell games inherit the fixes.** Plus: `maximum-scale=1`
+on every viewport and `installZoomGuard()` at every entry point (the actual
+double-tap-zoom fix); audio resumes after backgrounding; `shareInvite` no longer
+throws an unhandled rejection on clipboard failure. Bubble's emote wheel now
+opens at the holding finger (clamped on-screen), caches its center, adds
+aria-labels and a `destroy()`. Splash's inline lobby overlay was a scroll trap —
+JOIN was unreachable on short/landscape screens; it now scrolls
+(`overflow-y:auto` + `touch-action:pan-y` + safe-area). Both add a reconnect
+dead-end retry CTA.
+
+**Wave 2 — converge the bespoke games.** The key insight: share the *plumbing*,
+not the surface — Puck's analog skate stick and Ramp's pedal/lean aren't a
+D-pad, and forcing the shell's absolute-positioned A/B on them would fight their
+design. So `onViewportChange()` (the rotate/resize/visualViewport + iOS-settle
+scheduler) was extracted from `startLayout` and both games adopt it — that fixes
+rotation. Their controls rebuild on `createOctantPad`/`bindMomentaryButton`,
+which deletes Ramp's `let touchBits` module-global and the no-capture
+`pointerleave→release` that silently cut the throttle, and Puck's duplicated
+device detection. Plus safe-area-left/right (landscape notch), ≥44px touch
+targets, Ramp's missing apple-mobile-web-app metas, and reconnect CTAs.
+
+**Method note for the Field Guide:** the sweep was the deliverable before any
+code — a fan-out of read-only auditors producing structured findings, deduped by
+a synthesis pass, so the fix plan was driven by evidence (33 prioritized issues)
+rather than by the three symptoms first reported. Several high-severity bugs
+(the A/B slide, the unreachable JOIN) were ones the user *hadn't* hit yet.
+
+**Still open (carried):** a shared lobby-overlay component (Splash's overlay is
+still a per-page `<style>` with its own avatar-grid markup — the scroll-trap is
+fixed but the duplication isn't); Ramp's documented lower-corner LEAN reflow
+(needs a playtest judgment, not static analysis); a shared SW/manifest decision
+(only Bubble is a real PWA); per-frame Map/Set churn in the render loops. And the
+whole sweep still wants the two-phone playtest to close — static analysis got it
+to "should be right," not "verified on glass."
