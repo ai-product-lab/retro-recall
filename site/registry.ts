@@ -74,7 +74,8 @@ export const GAMES: readonly GameEntry[] = [
     tagline: 'Water blasters vs. wind-up robots.',
     players: '1–4',
     mode: 'co-op',
-    status: 'coming-soon',
+    status: 'live',
+    route: '/play/splash-squad/',
     accent: '#3df5a6',
     art: 'droplet',
     teaser: {
